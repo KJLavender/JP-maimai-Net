@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 # 爬蟲 --test 時存下來的除錯頁
 debug_*.html
+# API key 放這裡，絕不進 repo
+.env
