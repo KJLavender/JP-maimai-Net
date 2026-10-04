@@ -1,0 +1,3 @@
+# 網站內容由 `python make_index.py` 產生到 site/
+[build]
+  publish = "site"

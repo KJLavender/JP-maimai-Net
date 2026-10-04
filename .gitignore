@@ -1,0 +1,6 @@
+# Local Netlify folder
+.netlify
+__pycache__/
+*.pyc
+# 爬蟲 --test 時存下來的除錯頁
+debug_*.html
