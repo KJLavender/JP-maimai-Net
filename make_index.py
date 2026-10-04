@@ -7,7 +7,7 @@ import csv, glob, os, re, json, datetime
 from collections import Counter
 from urllib.parse import quote
 
-HEADER_KEYS = ["名稱","地址","都道府縣","營業時間","遊戲","郵遞區號","地圖連結","詳細連結","緯度","經度","中文名"]
+HEADER_KEYS = ["名稱","地址","都道府縣","營業時間","遊戲","郵遞區號","地圖連結","詳細連結","緯度","經度","中文名","google_place_id"]
 RHYTHM_ORDER = [
     "maimai でらっくす", "CHUNITHM", "オンゲキ",
     "初音ミク Project DIVA Arcade Future Tone",
@@ -58,12 +58,18 @@ def read_rows():
                 else:
                     q = f"{name} {addr}"
                 url = g("地圖連結") or ("https://www.google.com/maps/search/?api=1&query=" + quote(q))
+                gp = g("google_place_id")
+                if gp:   # 有 Google place ID → 直接開到那間店
+                    url = ("https://www.google.com/maps/search/?api=1&query=" + quote(zh or name)
+                           + "&query_place_id=" + quote(gp))
                 m = re.search(r"sid=(\d+)", g("詳細連結"))
                 rec = {"n": name, "a": addr, "p": g("都道府縣") or "其他",
                        "h": g("營業時間"), "g": games, "u": url, "d": g("詳細連結"),
                        "i": m.group(1) if m else name + "|" + addr}
                 if zh and zh != name:
                     rec["z"] = zh
+                if gp:
+                    rec["gp"] = gp
                 try:
                     rec["y"], rec["x"] = round(float(g("緯度")), 6), round(float(g("經度")), 6)
                 except ValueError:
@@ -416,7 +422,7 @@ function badgeHTML(d){const b=status(d).b;
  return `<div class="rgt">${b?`<span class="badge ${b.c}">${b.t}</span>`:''}${dist}</div>`;}
 function navBtns(d){
  if('y'in d){
-   const nav=`https://www.google.com/maps/dir/?api=1&destination=${d.y},${d.x}`;
+   const nav=`https://www.google.com/maps/dir/?api=1&destination=${d.y},${d.x}${d.gp?'&destination_place_id='+d.gp:''}`;
    return `<a class="btn" href="${nav}" target="_blank" rel="noopener">導航前往</a>`+
           `<a class="btn ghost" href="${esc(d.u)}" target="_blank" rel="noopener">店家資訊</a>`;
  }
@@ -437,7 +443,7 @@ function card(d){const star=state.favs.has(d.i)?'★':'☆';
   ${routeBtnHTML(d)}
   <div class="cfoot">${navBtns(d)}${detail}</div></div>`;}
 function popupHTML(d){const b=status(d).b;const star=state.favs.has(d.i)?'★':'☆';
- const nav=('y'in d)?`https://www.google.com/maps/dir/?api=1&destination=${d.y},${d.x}`:d.u;
+ const nav=('y'in d)?`https://www.google.com/maps/dir/?api=1&destination=${d.y},${d.x}${d.gp?'&destination_place_id='+d.gp:''}`:d.u;
  return `<div class="pop"><div class="pn"><button class="star" onclick="toggleFav(${d._idx},this)">${star}</button> ${esc(d.z||d.n)}</div>
   ${b?`<span class="badge ${b.c}">${b.t}</span>`:''} <span class="ph">${esc(d.h||'官方未登記營業時間')}</span>
   <div class="gtags">${gtagsHTML(d.g)}</div>
@@ -505,7 +511,7 @@ open("site/icon.svg","w",encoding="utf-8").write(
  '<circle cx="256" cy="256" r="150" fill="none" stroke="#26e0e6" stroke-width="26" '
  'stroke-dasharray="140 800" stroke-linecap="round"/><circle cx="256" cy="256" r="46" fill="#26e0e6"/></svg>')
 open("site/sw.js","w",encoding="utf-8").write(
- "const C='maimai-v9';const A=['./','./index.html','./manifest.webmanifest','./icon.svg'];"
+ "const C='maimai-v10';const A=['./','./index.html','./manifest.webmanifest','./icon.svg'];"
  "self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(A)))});"
  "self.addEventListener('activate',e=>{e.waitUntil(Promise.all(["
  "caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))),"
