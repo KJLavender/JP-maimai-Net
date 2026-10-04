@@ -64,7 +64,7 @@ def fetch(session, gid, retries=2):
 
 
 def parse_mgm(html):
-    """回傳 (中文名, lat, lng, 有無maimai)；抓不到座標回 None。"""
+    """回傳 (中文名, lat, lng, 有無maimai, 營業時間)；抓不到座標回 None。"""
     soup = BeautifulSoup(html, "html.parser")
     name = ""
     h1 = soup.find("h1")
@@ -79,7 +79,16 @@ def parse_mgm(html):
         return None
     lat, lng = float(m.group(1)), float(m.group(2))
     has_mai = bool(MAI_RE.search(soup.get_text(" ")))
-    return name, lat, lng, has_mai
+    mh = re.search(r"營業時間[:：]\s*([^\n]+)", soup.get_text("\n", strip=True))
+    return name, lat, lng, has_mai, norm_hours(mh.group(1)) if mh else ""
+
+
+def norm_hours(t):
+    """MGM 的「10：00～22：00」→ 與官方資料同格式「10:00〜22:00」；全天 → 24時間。"""
+    t = re.sub(r"\s+", "", t).replace("：", ":").replace("~", "〜").replace("～", "〜").replace("-", "〜")
+    if re.fullmatch(r"0?0:00〜24:00|24(小時|時間|h|hrs?)", t, re.I):
+        return "24時間"
+    return t if re.search(r"\d", t) else ""      # 「未知」之類的不算
 
 
 def scan(session, upto, test=False):
@@ -96,7 +105,7 @@ def scan(session, upto, test=False):
         miss = 0
         rec = parse_mgm(html)
         if rec and rec[0]:
-            rows.append({"name": rec[0], "lat": rec[1], "lng": rec[2], "mai": rec[3]})
+            rows.append({"name": rec[0], "lat": rec[1], "lng": rec[2], "mai": rec[3], "hours": rec[4]})
         if gid % 20 == 0:
             print(f"  掃描 {gid}/{upto} … 已收 {len(rows)} 間", flush=True)
         time.sleep(SLEEP)
@@ -109,14 +118,14 @@ def load_cache():
     with open("mgm_cache.csv", encoding="utf-8-sig") as f:
         r = csv.DictReader(f)
         return [{"name": x["name"], "lat": float(x["lat"]), "lng": float(x["lng"]),
-                 "mai": x.get("mai", "True") == "True"} for x in r]
+                 "mai": x.get("mai", "True") == "True", "hours": norm_hours(x.get("hours", ""))} for x in r]
 
 
 def save_cache(rows):
     with open("mgm_cache.csv", "w", newline="", encoding="utf-8-sig") as f:
-        w = csv.writer(f); w.writerow(["name", "lat", "lng", "mai"])
+        w = csv.writer(f); w.writerow(["name", "lat", "lng", "mai", "hours"])
         for r in rows:
-            w.writerow([r["name"], r["lat"], r["lng"], r["mai"]])
+            w.writerow([r["name"], r["lat"], r["lng"], r["mai"], r["hours"]])
 
 
 def merge_names(mgm_rows, test=False):
@@ -129,6 +138,7 @@ def merge_names(mgm_rows, test=False):
         head.append("中文名")
     iName, iP = head.index("名稱"), head.index("都道府縣")
     iZh = head.index("中文名")
+    iH = head.index("營業時間")
     iLat = head.index("緯度") if "緯度" in head else -1
     iLng = head.index("經度") if "經度" in head else -1
     if iLat < 0:
@@ -168,17 +178,22 @@ def merge_names(mgm_rows, test=False):
     for d, ri, mj in cand:
         if ri in used_sega or mj in used_mgm:
             continue
-        used_sega.add(ri); used_mgm.add(mj); assign[ri] = (mai_pts[mj]["name"], d)
+        used_sega.add(ri); used_mgm.add(mj); assign[ri] = (mai_pts[mj], d)
 
-    hit = 0; samples = []
-    for ri, (zh, d) in assign.items():
+    hit = hours_hit = 0; samples = []
+    for ri, (m, d) in assign.items():
+        zh = m["name"]
         rows[ri][iZh] = zh; hit += 1
+        # 台灣營業時間以 MGM 為準：SEGA 國際版常填「24hrs」「00:00〜22:30」之類的預設值
+        # （例：新竹巨城店 SEGA 寫 24hrs，MGM 11:00〜21:30，Google 22:00 打烊）
+        if m.get("hours"):
+            rows[ri][iH] = m["hours"]; hours_hit += 1
         if len(samples) < 15:
             samples.append((rows[ri][iName], zh, round(d)))
     out = rows[1:]
 
     tw_total = len(tw_idx)
-    print(f"\n有座標的台灣店 {tw_total} 間，成功對到中文名 {hit} 間（門檻 {THRESHOLD_M}m、同品牌 {BRAND_THRESHOLD_M}m，一對一配對）")
+    print(f"\n有座標的台灣店 {tw_total} 間，成功對到中文名 {hit} 間（門檻 {THRESHOLD_M}m、同品牌 {BRAND_THRESHOLD_M}m，一對一配對）；營業時間採用 MGM {hours_hit} 間")
     print("樣本（英文名 → 中文名 · 距離m）：")
     for a, b, dd in samples:
         print(f"  {a}  →  {b}  ({dd}m)")

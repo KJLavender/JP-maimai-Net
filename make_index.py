@@ -50,12 +50,18 @@ def read_rows():
                 seen.add(key)
                 games = [GAME_ALIAS.get(x.strip(), x.strip()) for x in re.split(r"[、,]", g("遊戲")) if x.strip()]
                 games = list(dict.fromkeys(games))
-                url = g("地圖連結") or ("https://www.google.com/maps/search/?api=1&query=" + quote(f"{name} {addr}"))
+                zh = g("中文名")
+                # 台灣店的英文名＋英文地址丟給 Google 常跑出一串結果；有中文名就只搜中文名，
+                # 沒有就把「TOM'S WORLD(GIANT CITY@HSINCHU)」拆成一般字詞
+                if g("都道府縣") == "台灣":
+                    q = zh or re.sub(r"[()@]+", " ", name).strip()
+                else:
+                    q = f"{name} {addr}"
+                url = g("地圖連結") or ("https://www.google.com/maps/search/?api=1&query=" + quote(q))
                 m = re.search(r"sid=(\d+)", g("詳細連結"))
                 rec = {"n": name, "a": addr, "p": g("都道府縣") or "其他",
                        "h": g("營業時間"), "g": games, "u": url, "d": g("詳細連結"),
                        "i": m.group(1) if m else name + "|" + addr}
-                zh = g("中文名")
                 if zh and zh != name:
                     rec["z"] = zh
                 try:
@@ -420,7 +426,9 @@ function routeBtnHTML(d){if(!('y'in d))return'';
  const on=inRoute(d.i);
  return `<button class="chip rtbtn" data-on="${on?1:0}" onclick="toggleRoute(${d._idx},this)">${on?'✅ 已加入路線':'🧭 加入路線'}</button>`;}
 function card(d){const star=state.favs.has(d.i)?'★':'☆';
- const hours=d.h?`<div class="hours"><span class="clk">🕒</span> ${esc(d.h)}</div>`:`<div class="hours clk">🕒 時間未提供（點下方看官方頁）</div>`;
+ const ref=d.p==='台灣'?' <span class="clk">（僅供參考）</span>':'';
+ const hours=d.h?`<div class="hours"><span class="clk">🕒</span> ${esc(d.h)}${ref}</div>`
+   :`<div class="hours clk">🕒 官方未登記營業時間（點「店家資訊」看 Google 地圖）</div>`;
  const detail=d.d?`<a class="btn ghost" href="${esc(d.d)}" target="_blank" rel="noopener">官方詳細</a>`:'';
  return `<div class="card"><div class="crow"><div class="cname">
    <button class="star" onclick="toggleFav(${d._idx},this)">${star}</button> ${esc(d.z||d.n)}${d.z?`<div class="ename">${esc(d.n)}</div>`:''}</div>${badgeHTML(d)}</div>
@@ -431,7 +439,7 @@ function card(d){const star=state.favs.has(d.i)?'★':'☆';
 function popupHTML(d){const b=status(d).b;const star=state.favs.has(d.i)?'★':'☆';
  const nav=('y'in d)?`https://www.google.com/maps/dir/?api=1&destination=${d.y},${d.x}`:d.u;
  return `<div class="pop"><div class="pn"><button class="star" onclick="toggleFav(${d._idx},this)">${star}</button> ${esc(d.z||d.n)}</div>
-  ${b?`<span class="badge ${b.c}">${b.t}</span>`:''} <span class="ph">${esc(d.h||'時間未提供')}</span>
+  ${b?`<span class="badge ${b.c}">${b.t}</span>`:''} <span class="ph">${esc(d.h||'官方未登記營業時間')}</span>
   <div class="gtags">${gtagsHTML(d.g)}</div>
   <div style="margin-top:8px">${routeBtnHTML(d)}</div>
   <div class="cfoot"><a class="btn" href="${esc(nav)}" target="_blank" rel="noopener">導航前往</a></div></div>`;}
@@ -497,7 +505,7 @@ open("site/icon.svg","w",encoding="utf-8").write(
  '<circle cx="256" cy="256" r="150" fill="none" stroke="#26e0e6" stroke-width="26" '
  'stroke-dasharray="140 800" stroke-linecap="round"/><circle cx="256" cy="256" r="46" fill="#26e0e6"/></svg>')
 open("site/sw.js","w",encoding="utf-8").write(
- "const C='maimai-v8';const A=['./','./index.html','./manifest.webmanifest','./icon.svg'];"
+ "const C='maimai-v9';const A=['./','./index.html','./manifest.webmanifest','./icon.svg'];"
  "self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(A)))});"
  "self.addEventListener('activate',e=>{e.waitUntil(Promise.all(["
  "caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))),"

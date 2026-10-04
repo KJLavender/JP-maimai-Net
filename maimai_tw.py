@@ -93,10 +93,11 @@ def parse_detail(html):
     mh = re.search(r"\d{1,2}:\d{2}\s*[〜~～\-–]\s*\d{1,2}:\d{2}", seg)
     if mh:
         hours = re.sub(r"\s+", "", mh.group(0)).replace("~", "〜").replace("-", "〜").replace("～", "〜")
-    elif re.search(r"24\s*時間|24\s*hours", seg, re.I):
+    elif re.search(r"24\s*(時間|hours?|hrs?)", seg, re.I):   # 「24時間」「24 hours」「24hrs」
         hours = "24時間"
     else:
-        hours = ""
+        mo = re.search(r"\d{1,2}:\d{2}\s*[〜~～\-–]", seg)       # 只寫開門時間，例「10:00～」
+        hours = re.sub(r"\s+", "", mo.group(0))[:-1] + "〜" if mo else ""
     return {"hours": hours, "games": games}
 
 
