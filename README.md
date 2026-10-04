@@ -1,26 +1,44 @@
-# 全日本音遊機廳 · Arcade Finder
+# 🎵 Japan Rhythm Game Arcade Finder
 
-查詢全日本有 maimai DX / CHUNITHM / オンゲキ / Project DIVA 等音遊的機廳：營業中判斷、距離排序、清單 / 地圖檢視、收藏、多點巡迴導航，可安裝成 PWA。
+**English** | [繁體中文](README.zh-TW.md)
 
-網站：https://maimai-japan-map.netlify.app
+Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project DIVA and other rhythm games. The data comes from SEGA's official ALL.Net location search and is packed into a single-page site that works offline and can be installed to your phone's home screen.
 
-## 資料流程
+🔗 **Live site: https://maimai-japan-map.netlify.app**
 
-| 步驟 | 指令 | 說明 |
+> The site UI is in Traditional Chinese; arcade names and addresses are shown as listed by SEGA (Japanese / English), with Chinese names added for Taiwan where available.
+
+## ✨ Features
+
+- 🕒 **Live open/closed status**: open, closing soon, opening soon countdowns, calculated in local time (Japan UTC+9, Taiwan UTC+8)
+- 🎮 **Filter by game**: rhythm-game buttons plus a dropdown for every other ALL.Net title; International Versions count as the same game as the Japanese ones
+- 📍 **Nearby arcades**: use GPS or type a place name, sort by distance, limit to 5 / 10 / 20 km
+- 🔎 **Search** by name, address, prefecture or Chinese name; Japanese shinjitai and Traditional Chinese characters match each other (「沖繩」 finds 「沖縄」)
+- 🌙 **Open late** filter, ⭐ **favorites** (saved in the browser)
+- 🧭 **Arcade crawl route**: pick up to 9 stops and open them as one multi-stop Google Maps route
+- 🗺️ **List / map views**: clustered markers, green = open now
+- 📱 **PWA**: add to home screen; the list works offline
+
+## 🔄 Data pipeline
+
+| Step | Command | What it does |
 |---|---|---|
-| 1 | `python maimai_detail.py` | 從 [ALL.Net 設置店舖檢索](https://location.am-all.net/alm/location?gm=96) 爬 47 都道府縣的店家、營業時間、遊戲清單 → `maimai_full.csv`（分縣存在 `by_pref2/`） |
-| 2 | `python add_coords.py` | 補經緯度 |
-| 3（選用） | `python maimai_tw.py` → `add_coords_tw.py` → `add_tw_names.py` | 併入台灣機廳（gm=98）＋座標＋中文店名（Music Game Map） |
-| 4 | `python make_index.py` | 讀 `maimai_full.csv`，產生 `site/`（單檔 HTML + PWA） |
+| 1 | `python maimai_detail.py` | Scrapes [ALL.Net](https://location.am-all.net/alm/location?gm=96) for all 47 prefectures: name, address, hours, game list → `maimai_full.csv` (per-prefecture files in `by_pref2/`) |
+| 2 | `python add_coords.py` | Adds latitude / longitude |
+| 3 | `python maimai_tw.py` | Merges in Taiwan arcades (gm=98, International Version) |
+| 4 | `python add_coords_tw.py` | Adds coordinates for Taiwan |
+| 5 | `python add_tw_names.py` | Matches Chinese names from [Music Game Map](https://mgm.wind-chime.info) by distance + brand (`--scan 400` refreshes the cache) |
+| 6 | `python make_index.py` | Reads `maimai_full.csv` and generates `site/` (single HTML file with the data inlined, plus PWA files) |
 
-需求：`pip install requests beautifulsoup4`
+Requirements: Python 3.10+, `pip install requests beautifulsoup4`
 
-## 部署
+## 🚀 Deployment
 
-Netlify，發佈目錄為 `site/`（見 `netlify.toml`）：
+Netlify is linked to this repo: pushing to `main` publishes `site/` automatically (see `netlify.toml`). Netlify does not run a build, so run `make_index.py` locally and commit `site/` along with your changes.
 
-```
-netlify deploy --prod --dir site
-```
+When you change the page, bump the Service Worker cache name (`maimai-vN`) in `make_index.py` so users who installed the PWA get the new version.
 
-改了頁面內容時，記得把 `make_index.py` 裡 Service Worker 的快取名稱（`maimai-vN`）加一，已安裝 PWA 的使用者才會拿到新版。
+## 📝 Notes
+
+- Arcade data © SEGA; map data © OpenStreetMap contributors
+- Most Taiwan arcades have no opening hours registered with SEGA, so they show "hours not provided"
