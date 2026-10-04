@@ -20,6 +20,23 @@ HEADERS = {"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit
                           "(KHTML, like Gecko) Chrome/125.0 Safari/537.36")}
 SLEEP = 0.4
 THRESHOLD_M = 60           # 兩點在此公尺內才視為同一間店（寧嚴勿寬，避免誤配）
+BRAND_THRESHOLD_M = 250    # 兩邊品牌對得上時放寬到這個距離（兩站座標常有百來公尺落差）
+# (英文店名 regex, 中文店名 regex)：同品牌才放寬距離；兩邊都認得出品牌卻不同 → 不配對
+BRANDS = [
+    (r"TOM'?S\s*WORLD", r"湯姆熊"), (r"HALA", r"哈啦"), (r"SHIRONEKOYA", r"白喵"),
+    (r"GiGO", r"GiGO"), (r"SIN\s*YI\s*CITY", r"新藝城"), (r"HAPPY\s*100", r"HAPPY\s*100"),
+    (r"YOUNG\s*KEY", r"永淇"), (r"VAN'?S", r"小凡"), (r"X50", r"X50"), (r"HURO", r"湖若|HURO"),
+    (r"RED\s*HAT", r"紅帽象"), (r"CATCH\s*BUFFET", r"夾到飽"), (r"WAWA", r"娃娃帝國"),
+]
+
+
+def brand(name, zh=False):
+    for i, pair in enumerate(BRANDS):
+        if re.search(pair[1 if zh else 0], name, re.I):
+            return i
+    return None
+
+
 COORD_RE = re.compile(r"center=(-?\d+\.\d+),(-?\d+\.\d+)")
 MAI_RE = re.compile(r"maimai", re.I)   # 只保留有 maimai 的店，減少誤配
 
@@ -132,13 +149,21 @@ def merge_names(mgm_rows, test=False):
                 pass
 
     # 算出所有 (距離, sega列, mgm點) 夠近的候選，按距離排序，做一對一貪婪配對
+    # 品牌相同者優先、其次距離近者；英文名認得出品牌時只配同品牌
     cand = []
     for ri, la, lo in tw_idx:
+        bs = brand(rows[ri][iName])
+        rows[ri][iZh] = ""          # 重算，不留上一輪的結果
         for mj, r in enumerate(mai_pts):
             d = haversine_m((la, lo), (r["lat"], r["lng"]))
-            if d <= THRESHOLD_M:
-                cand.append((d, ri, mj))
-    cand.sort(key=lambda x: x[0])
+            bm = brand(r["name"], zh=True)
+            same = bs is not None and bs == bm
+            if bs is not None and not same:   # 認得出品牌就一定要同品牌
+                continue
+            if d <= THRESHOLD_M or (same and d <= BRAND_THRESHOLD_M):
+                cand.append((0 if same else 1, d, ri, mj))
+    cand.sort(key=lambda x: (x[0], x[1]))
+    cand = [(d, ri, mj) for _, d, ri, mj in cand]
     used_sega, used_mgm, assign = set(), set(), {}
     for d, ri, mj in cand:
         if ri in used_sega or mj in used_mgm:
@@ -153,7 +178,7 @@ def merge_names(mgm_rows, test=False):
     out = rows[1:]
 
     tw_total = len(tw_idx)
-    print(f"\n有座標的台灣店 {tw_total} 間，成功對到中文名 {hit} 間（門檻 {THRESHOLD_M}m，一對一配對）")
+    print(f"\n有座標的台灣店 {tw_total} 間，成功對到中文名 {hit} 間（門檻 {THRESHOLD_M}m、同品牌 {BRAND_THRESHOLD_M}m，一對一配對）")
     print("樣本（英文名 → 中文名 · 距離m）：")
     for a, b, dd in samples:
         print(f"  {a}  →  {b}  ({dd}m)")

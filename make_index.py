@@ -82,6 +82,7 @@ HTML = r"""<!doctype html><html lang="zh-Hant"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>全日本音遊機廳</title>
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <meta name="theme-color" content="#0d0b1a"><link rel="apple-touch-icon" href="icon.svg">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
@@ -149,7 +150,7 @@ select{font-size:.77rem;padding:5px 9px;border-radius:999px;background:var(--sur
 @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion){.card{animation:none}}
 .crow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.cname{font-size:1.02rem;font-weight:700}
+.cname{font-size:1.02rem;font-weight:700;min-width:0;overflow-wrap:anywhere}
 .ename{font-size:.72rem;font-weight:400;color:var(--muted);margin-top:1px}
 .star{background:none;border:none;color:#ffd24a;font-size:1.2rem;cursor:pointer;line-height:1;padding:0 2px}
 .rgt{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none}
@@ -164,7 +165,7 @@ select{font-size:.77rem;padding:5px 9px;border-radius:999px;background:var(--sur
 .gtags{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 2px}
 .gt{font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:6px;color:#0d0b1a;background:var(--gc,#8f8ac0)}
 .gt.dim{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:600}
-.addr{font-size:.76rem;color:var(--muted);margin-top:7px}
+.addr{font-size:.76rem;color:var(--muted);margin-top:7px;overflow-wrap:anywhere}
 .rtbtn{display:inline-block;margin-top:9px}
 .rtbtn[data-on="1"]{background:var(--magenta);color:#fff;border-color:transparent;font-weight:700}
 .cfoot{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
@@ -207,7 +208,7 @@ noscript{display:block;padding:20px;color:var(--muted)}
 </style></head><body>
 <header><div class="hbar">
  <div class="trow"><h1 class="title">全日本<b>音遊</b>機廳</h1><span class="eyebrow">Arcade Finder</span></div>
- <div class="sub">__TOTAL__ 間 · 營業時間與距離基準皆為日本</div>
+ <div class="sub">__TOTAL__ 間 · 營業狀態依當地時間計算</div>
  <div class="qrow">
    <input id="q" placeholder="搜尋店名、地址、縣市，或輸入地名後按「搜尋此地」" autocomplete="off">
    <button class="qbtn" id="geoq">搜尋此地</button>
@@ -222,7 +223,7 @@ noscript{display:block;padding:20px;color:var(--muted)}
  <div class="count" id="count"></div>
  <div id="map"></div>
  <div id="list"></div>
- <div class="foot">資料更新：__DATE__ · 來源 ALL.Net 設置店舖檢索 · 營業狀態依日本時間即時計算</div>
+ <div class="foot">資料更新：__DATE__ · 來源 ALL.Net 設置店舖檢索 · 營業狀態依當地時間即時計算（日本 UTC+9、台灣 UTC+8）</div>
  <a class="top" href="#" onclick="scrollTo(0,0);return false">▲ 回到頂端</a>
 </div>
 <div id="routebar">
@@ -268,11 +269,12 @@ function parseHours(s){if(!s)return null;
  if(/24/.test(s)&&/(時間|hour)/.test(s))return[[0,1440]];
  const m=s.match(/(\d{1,2}):(\d{2})\D+?(\d{1,2}):(\d{2})/);if(!m)return null;
  let st=+m[1]*60+ +m[2],en=+m[3]*60+ +m[4];if(en<=st)en+=1440;return[[st,en]];}
-function jstMin(){const d=new Date();const u=d.getTime()+d.getTimezoneOffset()*6e4;
- const j=new Date(u+9*36e5);return j.getHours()*60+j.getMinutes();}
+function localMin(off){const d=new Date();const u=d.getTime()+d.getTimezoneOffset()*6e4;
+ const j=new Date(u+off*36e5);return j.getHours()*60+j.getMinutes();}
 function isLate(h){const r=parseHours(h);return r?r.some(x=>x[1]>=1440):false;}
-function status(h){const r=parseHours(h);if(!r)return{s:'unknown',b:null};
- const t=jstMin();let open=false,toClose=1e9;
+const tzOff=d=>d.p==='台灣'?8:9;
+function status(d){const r=parseHours(d.h);if(!r)return{s:'unknown',b:null};
+ const t=localMin(tzOff(d));let open=false,toClose=1e9;
  for(const[s,e]of r){let tt=null;if(t>=s&&t<e)tt=t;else if(t+1440>=s&&t+1440<e)tt=t+1440;
    if(tt!=null){open=true;toClose=Math.min(toClose,e-tt);}}
  if(open)return toClose<=60?{s:'open',b:{c:'soon',t:`還有 ${toClose} 分打烊`}}:{s:'open',b:{c:'open',t:'營業中'}};
@@ -327,11 +329,11 @@ function renderStatusRow(){
  const sel=document.createElement('select');
  sel.innerHTML='<option value="">全部縣市</option>'+prefs.map(p=>`<option${p===state.pref?' selected':''}>${esc(p)}</option>`).join('');
  sel.onchange=()=>{state.pref=sel.value;render();};row.appendChild(sel);
- if(state.games.size||state.openOnly||state.lateOnly||state.favOnly||state.pref||state.radius||state.q)
-   row.appendChild(chip('clear','✕ 清除篩選',false,()=>{
+ const clr=chip('clear','✕ 清除篩選',false,()=>{
      state.games.clear();state.openOnly=state.lateOnly=state.favOnly=false;state.pref='';
      state.radius=null;state.q='';document.getElementById('q').value='';
-     LS.set('games',[]);LS.set('radius',null);renderAllRows();render();}));
+     LS.set('games',[]);LS.set('radius',null);renderAllRows();render();});
+ clr.id='clearf';row.appendChild(clr);
  const vt=document.createElement('div');vt.className='viewtoggle';
  vt.innerHTML=`<button data-v="list"${state.view==='list'?' data-on="1"':''}>清單</button>`+
               `<button data-v="map"${state.view==='map'?' data-on="1"':''}>地圖</button>`;
@@ -379,10 +381,10 @@ document.getElementById('routestart').onclick=()=>{
  if(mids.length)url+=`&waypoints=${encodeURIComponent(mids.map(d=>`${d.y},${d.x}`).join('|'))}`;
  window.open(url,'_blank');};
 
-document.getElementById('q').addEventListener('input',e=>{state.q=e.target.value.trim();renderStatusRow();render();});
+document.getElementById('q').addEventListener('input',e=>{state.q=e.target.value.trim();render();});
 document.getElementById('geoq').onclick=async()=>{const q=state.q.trim();if(!q)return toast('先在搜尋框輸入地名');
  toast('尋找「'+q+'」…');
- try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=jp&q='+encodeURIComponent(q));
+ try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=jp,tw&q='+encodeURIComponent(q));
   const j=await r.json();if(!j.length)return toast('找不到「'+q+'」');
   document.getElementById('q').value='';state.q='';setOrigin(+j[0].lat,+j[0].lon,q,'search');
  }catch(_){toast('定位服務連線失敗（需要網路）');}};
@@ -392,7 +394,7 @@ function match(d){
  if(state.favOnly&&!state.favs.has(d.i))return false;
  if(state.q){if(!d._s.includes(foldCJK(state.q.toLowerCase())))return false;}
  for(const g of state.games)if(!d.g.includes(g))return false;
- if(state.openOnly&&status(d.h).s!=='open')return false;
+ if(state.openOnly&&status(d).s!=='open')return false;
  if(state.lateOnly&&!isLate(d.h))return false;
  return true;}
 function filtered(){let rs=DATA.filter(match);
@@ -403,7 +405,7 @@ function filtered(){let rs=DATA.filter(match);
 function gtagsHTML(g){const r=g.filter(isRhythm),o=g.filter(x=>!isRhythm(x));
  return r.map(x=>`<span class="gt" style="--gc:${gcolor(x)}">${gshort(x)}</span>`).join('')
       + o.map(x=>`<span class="gt dim">${gshort(x)}</span>`).join('');}
-function badgeHTML(d){const b=status(d.h).b;
+function badgeHTML(d){const b=status(d).b;
  const dist=(state.origin&&'y'in d)?`<span class="dist">📍 ${fmtDist(d._km)}</span>`:'';
  return `<div class="rgt">${b?`<span class="badge ${b.c}">${b.t}</span>`:''}${dist}</div>`;}
 function navBtns(d){
@@ -426,7 +428,7 @@ function card(d){const star=state.favs.has(d.i)?'★':'☆';
   <div class="addr">${esc(d.a)}</div>
   ${routeBtnHTML(d)}
   <div class="cfoot">${navBtns(d)}${detail}</div></div>`;}
-function popupHTML(d){const b=status(d.h).b;const star=state.favs.has(d.i)?'★':'☆';
+function popupHTML(d){const b=status(d).b;const star=state.favs.has(d.i)?'★':'☆';
  const nav=('y'in d)?`https://www.google.com/maps/dir/?api=1&destination=${d.y},${d.x}`:d.u;
  return `<div class="pop"><div class="pn"><button class="star" onclick="toggleFav(${d._idx},this)">${star}</button> ${esc(d.z||d.n)}</div>
   ${b?`<span class="badge ${b.c}">${b.t}</span>`:''} <span class="ph">${esc(d.h||'時間未提供')}</span>
@@ -446,7 +448,7 @@ function ensureMap(){if(map)return true;if(typeof L==='undefined')return false;
 function renderMap(rs){const el=document.getElementById('map');
  if(!ensureMap()){el.innerHTML='<div class="empty">地圖需要網路連線，請改用「清單」。</div>';return;}
  cluster.clearLayers();const pts=rs.filter(d=>'y'in d);
- cluster.addLayers(pts.map(d=>{const open=status(d.h).s==='open';
+ cluster.addLayers(pts.map(d=>{const open=status(d).s==='open';
    return L.circleMarker([d.y,d.x],{radius:7,weight:2,color:'#0d0b1a',fillOpacity:.95,open,
      fillColor:open?'#39d98a':'#ff3d9a'}).bindPopup(()=>popupHTML(d),{maxWidth:280});}));
  if(meMarker){map.removeLayer(meMarker);meMarker=null;}
@@ -458,6 +460,8 @@ function renderMap(rs){const el=document.getElementById('map');
 
 function render(){
  const listEl=document.getElementById('list'),mapEl=document.getElementById('map');
+ const clr=document.getElementById('clearf');
+ if(clr)clr.style.display=(state.games.size||state.openOnly||state.lateOnly||state.favOnly||state.pref||state.radius||state.q)?'':'none';
  const rs=filtered();
  document.getElementById('count').innerHTML=(state.origin?'依距離排序 · ':'')+
    (state.radius&&state.origin?`${state.radius}km 內 · `:'')+`顯示 ${rs.length} / ${DATA.length} 間`+
