@@ -7,7 +7,7 @@ import csv, glob, os, re, json, datetime
 from collections import Counter
 from urllib.parse import quote
 
-HEADER_KEYS = ["名稱","地址","都道府縣","營業時間","遊戲","郵遞區號","地圖連結","詳細連結","緯度","經度","中文名","google_place_id"]
+HEADER_KEYS = ["名稱","地址","都道府縣","營業時間","遊戲","郵遞區號","地圖連結","詳細連結","緯度","經度","中文名","google_place_id","營業時間來源"]
 RHYTHM_ORDER = [
     "maimai でらっくす", "CHUNITHM", "オンゲキ",
     "初音ミク Project DIVA Arcade Future Tone",
@@ -70,6 +70,8 @@ def read_rows():
                     rec["z"] = zh
                 if gp:
                     rec["gp"] = gp
+                if g("營業時間來源") in ("Google", "MGM"):
+                    rec["hs"] = g("營業時間來源")
                 try:
                     rec["y"], rec["x"] = round(float(g("緯度")), 6), round(float(g("經度")), 6)
                 except ValueError:
@@ -432,7 +434,8 @@ function routeBtnHTML(d){if(!('y'in d))return'';
  const on=inRoute(d.i);
  return `<button class="chip rtbtn" data-on="${on?1:0}" onclick="toggleRoute(${d._idx},this)">${on?'✅ 已加入路線':'🧭 加入路線'}</button>`;}
 function card(d){const star=state.favs.has(d.i)?'★':'☆';
- const ref=d.p==='台灣'?' <span class="clk">（僅供參考）</span>':'';
+ const ref=d.hs==='Google'?' <span class="clk">（Google 地圖）</span>'
+   :d.p==='台灣'?' <span class="clk">（僅供參考）</span>':'';
  const hours=d.h?`<div class="hours"><span class="clk">🕒</span> ${esc(d.h)}${ref}</div>`
    :`<div class="hours clk">🕒 官方未登記營業時間（點「店家資訊」看 Google 地圖）</div>`;
  const detail=d.d?`<a class="btn ghost" href="${esc(d.d)}" target="_blank" rel="noopener">官方詳細</a>`:'';
@@ -511,7 +514,7 @@ open("site/icon.svg","w",encoding="utf-8").write(
  '<circle cx="256" cy="256" r="150" fill="none" stroke="#26e0e6" stroke-width="26" '
  'stroke-dasharray="140 800" stroke-linecap="round"/><circle cx="256" cy="256" r="46" fill="#26e0e6"/></svg>')
 open("site/sw.js","w",encoding="utf-8").write(
- "const C='maimai-v10';const A=['./','./index.html','./manifest.webmanifest','./icon.svg'];"
+ "const C='maimai-v11';const A=['./','./index.html','./manifest.webmanifest','./icon.svg'];"
  "self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(A)))});"
  "self.addEventListener('activate',e=>{e.waitUntil(Promise.all(["
  "caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))),"

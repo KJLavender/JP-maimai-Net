@@ -134,11 +134,13 @@ def merge_names(mgm_rows, test=False):
     with open("maimai_full.csv", encoding="utf-8-sig") as f:
         rows = list(csv.reader(f))
     head = [h.lstrip("\ufeff").strip() for h in rows[0]]
-    if "中文名" not in head:
-        head.append("中文名")
+    for c in ("中文名", "營業時間來源"):
+        if c not in head:
+            head.append(c)
     iName, iP = head.index("名稱"), head.index("都道府縣")
     iZh = head.index("中文名")
     iH = head.index("營業時間")
+    iHs = head.index("營業時間來源")
     iLat = head.index("緯度") if "緯度" in head else -1
     iLng = head.index("經度") if "經度" in head else -1
     if iLat < 0:
@@ -186,8 +188,8 @@ def merge_names(mgm_rows, test=False):
         rows[ri][iZh] = zh; hit += 1
         # 台灣營業時間以 MGM 為準：SEGA 國際版常填「24hrs」「00:00〜22:30」之類的預設值
         # （例：新竹巨城店 SEGA 寫 24hrs，MGM 11:00〜21:30，Google 22:00 打烊）
-        if m.get("hours"):
-            rows[ri][iH] = m["hours"]; hours_hit += 1
+        if m.get("hours") and rows[ri][iHs] != "Google":   # Google 的時間優先
+            rows[ri][iH], rows[ri][iHs] = m["hours"], "MGM"; hours_hit += 1
         if len(samples) < 15:
             samples.append((rows[ri][iName], zh, round(d)))
     out = rows[1:]
