@@ -1,0 +1,78 @@
+name: Weekly data update
+
+# 每週一 03:00（日本時間）重爬 SEGA 官網，有變動就開 PR 到 test，摘要寫在 PR 內文
+on:
+  schedule:
+    - cron: "0 18 * * 0"
+  workflow_dispatch:
+    inputs:
+      mgm:
+        description: "一併重抓 Music Game Map（台灣中文名／機台資訊）"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: data-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: test
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - run: pip install requests beautifulsoup4 playwright
+
+      - name: Scrape and merge
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python update_data.py ${{ (github.event_name == 'schedule' || inputs.mgm) && '--mgm' || '' }}
+
+      - name: Regenerate site/
+        run: python make_index.py
+
+      - name: Anything changed?
+        id: diff
+        run: |
+          if git diff --quiet -- maimai_full.csv mgm_cache.csv; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"; echo "資料沒有變動"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # GITHUB_TOKEN 開的 PR 不會觸發 CI，所以在這裡先把 E2E 跑過一遍
+      - name: E2E tests
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          BROWSER_CHANNEL: ""
+          PYTHONIOENCODING: utf-8
+        run: |
+          python -m playwright install --with-deps chromium
+          (cd site && python -m http.server 8765 >/dev/null 2>&1 &)
+          sleep 1
+          python tests/test_site.py http://localhost:8765/index.html
+
+      - name: Open PR to test
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="data-update/$(date -u +%Y-%m-%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add maimai_full.csv mgm_cache.csv data_date.txt site/
+          git commit -m "資料更新 $(date -u +%Y-%m-%d)"
+          git push -f origin "$branch"
+          { cat update_summary.md; echo; echo "E2E 測試已在更新流程中通過。合併到 test 後會部署到測試版。"; } > body.md
+          gh pr create --base test --head "$branch" --title "資料更新 $(date -u +%Y-%m-%d)" --body-file body.md \
+            || gh pr edit "$branch" --body-file body.md

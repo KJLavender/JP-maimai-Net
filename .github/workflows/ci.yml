@@ -18,10 +18,9 @@ jobs:
       - name: Regenerate site/ from maimai_full.csv
         run: python make_index.py
       - name: Fail if site/ was not regenerated before committing
-        # 頁尾「資料更新」日期取自檔案修改時間，checkout 後一定不同，忽略那一行
         run: |
           git diff --stat -- site/
-          git diff --exit-code -I '資料更新：' -- site/ || {
+          git diff --exit-code -- site/ || {
             echo "::error::site/ 跟 maimai_full.csv / make_index.py 不同步，請在本機執行 python make_index.py 後一起 commit"
             exit 1; }
 

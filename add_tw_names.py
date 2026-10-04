@@ -11,7 +11,7 @@
   python add_tw_names.py              # 若已有 mgm_cache.csv，直接用快取比對（不重抓）
   python add_tw_names.py --test 70    # 只抓前 70 頁測試比對命中率，不寫回主檔
 """
-import csv, re, sys, time, math, argparse, os
+import csv, re, sys, time, math, argparse, os, json
 import requests
 from bs4 import BeautifulSoup
 
@@ -64,7 +64,7 @@ def fetch(session, gid, retries=2):
 
 
 def parse_mgm(html):
-    """回傳 (中文名, lat, lng, 有無maimai, 營業時間)；抓不到座標回 None。"""
+    """回傳 (中文名, lat, lng, 有無maimai, 營業時間, 機台清單)；抓不到座標回 None。"""
     soup = BeautifulSoup(html, "html.parser")
     name = ""
     h1 = soup.find("h1")
@@ -80,7 +80,28 @@ def parse_mgm(html):
     lat, lng = float(m.group(1)), float(m.group(2))
     has_mai = bool(MAI_RE.search(soup.get_text(" ")))
     mh = re.search(r"營業時間[:：]\s*([^\n]+)", soup.get_text("\n", strip=True))
-    return name, lat, lng, has_mai, norm_hours(mh.group(1)) if mh else ""
+    return name, lat, lng, has_mai, norm_hours(mh.group(1)) if mh else "", parse_machines(soup)
+
+
+def parse_machines(soup):
+    """機台表：每台兩列（機種/投幣/排隊/更新日 ＋ 備註）。
+    回傳 [{"g": 機種, "v": 版本或框體, "n": 台數, "coin": 投幣, "q": 排隊, "note": 備註, "upd": 日期}]"""
+    out = []
+    for box in soup.select("div.gameCenterArcadeBox"):
+        td = box.find_parent("td")
+        tr = td.find_parent("tr")
+        badge = box.select_one(".badgeArcade")
+        lines = [t.strip() for t in td.get_text("\n").split("\n") if t.strip()]
+        lines = [t for t in lines if not (badge and t == badge.get_text(strip=True))]
+        g = lines[0] if lines else ""
+        v = re.sub(r"^（(.*)）$", r"\1", lines[1]) if len(lines) > 1 else ""   # 只去最外層全形括號
+        cells = [c.get_text(" ", strip=True) for c in tr.find_all("td")[1:4]]
+        note_tr = tr.find_next_sibling("tr")
+        note = note_tr.get_text(" ", strip=True).replace("<br>", " ") if note_tr else ""
+        out.append({"g": g, "v": v, "n": int(badge.get_text(strip=True)) if badge else 1,
+                    "coin": cells[0] if cells else "", "q": cells[1] if len(cells) > 1 else "",
+                    "note": note[:120], "upd": (cells[2] if len(cells) > 2 else "")[:10]})
+    return out
 
 
 def norm_hours(t):
@@ -105,7 +126,8 @@ def scan(session, upto, test=False):
         miss = 0
         rec = parse_mgm(html)
         if rec and rec[0]:
-            rows.append({"name": rec[0], "lat": rec[1], "lng": rec[2], "mai": rec[3], "hours": rec[4]})
+            rows.append({"id": gid, "name": rec[0], "lat": rec[1], "lng": rec[2], "mai": rec[3],
+                         "hours": rec[4], "machines": rec[5]})
         if gid % 20 == 0:
             print(f"  掃描 {gid}/{upto} … 已收 {len(rows)} 間", flush=True)
         time.sleep(SLEEP)
@@ -117,15 +139,17 @@ def load_cache():
         return []
     with open("mgm_cache.csv", encoding="utf-8-sig") as f:
         r = csv.DictReader(f)
-        return [{"name": x["name"], "lat": float(x["lat"]), "lng": float(x["lng"]),
-                 "mai": x.get("mai", "True") == "True", "hours": norm_hours(x.get("hours", ""))} for x in r]
+        return [{"id": x.get("id", ""), "name": x["name"], "lat": float(x["lat"]), "lng": float(x["lng"]),
+                 "mai": x.get("mai", "True") == "True", "hours": norm_hours(x.get("hours", "")),
+                 "machines": json.loads(x.get("machines") or "[]")} for x in r]
 
 
 def save_cache(rows):
     with open("mgm_cache.csv", "w", newline="", encoding="utf-8-sig") as f:
-        w = csv.writer(f); w.writerow(["name", "lat", "lng", "mai", "hours"])
+        w = csv.writer(f); w.writerow(["id", "name", "lat", "lng", "mai", "hours", "machines"])
         for r in rows:
-            w.writerow([r["name"], r["lat"], r["lng"], r["mai"], r["hours"]])
+            w.writerow([r["id"], r["name"], r["lat"], r["lng"], r["mai"], r["hours"],
+                        json.dumps(r["machines"], ensure_ascii=False, separators=(",", ":"))])
 
 
 def merge_names(mgm_rows, test=False):
@@ -134,13 +158,14 @@ def merge_names(mgm_rows, test=False):
     with open("maimai_full.csv", encoding="utf-8-sig") as f:
         rows = list(csv.reader(f))
     head = [h.lstrip("\ufeff").strip() for h in rows[0]]
-    for c in ("中文名", "營業時間來源"):
+    for c in ("中文名", "營業時間來源", "機台", "mgm_id"):
         if c not in head:
             head.append(c)
     iName, iP = head.index("名稱"), head.index("都道府縣")
     iZh = head.index("中文名")
     iH = head.index("營業時間")
     iHs = head.index("營業時間來源")
+    iM, iMid = head.index("機台"), head.index("mgm_id")
     iLat = head.index("緯度") if "緯度" in head else -1
     iLng = head.index("經度") if "經度" in head else -1
     if iLat < 0:
@@ -165,7 +190,7 @@ def merge_names(mgm_rows, test=False):
     cand = []
     for ri, la, lo in tw_idx:
         bs = brand(rows[ri][iName])
-        rows[ri][iZh] = ""          # 重算，不留上一輪的結果
+        rows[ri][iZh] = rows[ri][iM] = rows[ri][iMid] = ""   # 重算，不留上一輪的結果
         for mj, r in enumerate(mai_pts):
             d = haversine_m((la, lo), (r["lat"], r["lng"]))
             bm = brand(r["name"], zh=True)
@@ -186,8 +211,9 @@ def merge_names(mgm_rows, test=False):
     for ri, (m, d) in assign.items():
         zh = m["name"]
         rows[ri][iZh] = zh; hit += 1
-        # 台灣營業時間以 MGM 為準：SEGA 國際版常填「24hrs」「00:00〜22:30」之類的預設值
-        # （例：新竹巨城店 SEGA 寫 24hrs，MGM 11:00〜21:30，Google 22:00 打烊）
+        rows[ri][iM] = json.dumps(m.get("machines", []), ensure_ascii=False, separators=(",", ":"))
+        rows[ri][iMid] = str(m.get("id", ""))
+        # 營業時間優先序 Google > MGM > SEGA：SEGA 國際版常填「24hrs」「00:00〜22:30」之類的預設值
         if m.get("hours") and rows[ri][iHs] != "Google":   # Google 的時間優先
             rows[ri][iH], rows[ri][iHs] = m["hours"], "MGM"; hours_hit += 1
         if len(samples) < 15:

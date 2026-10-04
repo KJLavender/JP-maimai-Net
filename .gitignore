@@ -9,3 +9,5 @@ debug_*.html
 tests/out/
 # Google API 本機用量紀錄
 google_usage.json
+# update_data.py 產生的 PR 摘要
+update_summary.md

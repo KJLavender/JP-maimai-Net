@@ -20,11 +20,12 @@ import requests
 
 URL = "https://places.googleapis.com/v1/places:searchText"
 FIELDS = "places.id,places.displayName,places.location"
-MONTHLY_CAP = 1150          # Text Search Pro 每月免費 5,000；保守設在一次跑完全部店的量
+MONTHLY_CAP = 2000          # Text Search Pro 每月免費 5,000；保守設在不到一半
 MAX_DIST_M = 300            # Google 座標與 SEGA 座標超過這距離就不採用
 USAGE = "google_usage.json"
 # 人工確認過 Google 配錯的店（配到商場、KTV、餐廳…）：不給 place ID，網頁退回用店名搜尋
-SKIP = {"キッズランド", "星狩物語岸和田店", "HURO WORLD(CITY LINK@NANGANG)", "TOM'S WORLD(GLOBALMALL-NANGANG)"}
+SKIP = {"キッズランド", "星狩物語岸和田店", "HURO WORLD(CITY LINK@NANGANG)", "TOM'S WORLD(GLOBALMALL-NANGANG)",
+        "INTER PARK+1宇都宮", "ウェアハウス一橋学園店"}
 
 
 def load_key():
@@ -73,26 +74,32 @@ class Usage:
         json.dump(self.data, open(USAGE, "w", encoding="utf-8"), indent=1)
 
 
+class QuotaExceeded(Exception):
+    """當天配額用完（Google 的「天」以美國太平洋時間計）。"""
+
+
 def search(session, key, query, lat, lng, lang):
     body = {"textQuery": query, "pageSize": 5, "languageCode": lang,
             "locationBias": {"circle": {"center": {"latitude": lat, "longitude": lng}, "radius": 200.0}}}
     r = session.post(URL, json=body, timeout=20,
                      headers={"X-Goog-Api-Key": key, "X-Goog-FieldMask": FIELDS})
     if r.status_code == 429:
-        raise SystemExit("Google 回 429：今天的配額用完了，明天再跑（已找到的會保留）")
+        raise QuotaExceeded()
     r.raise_for_status()
     return r.json().get("places", [])
 
 
-def pick(cands, names, lat, lng):
-    """在 MAX_DIST_M 內挑店名最像的；同分取近的。回傳 (place, 距離, 相似度) 或 None。"""
+def pick(cands, names, lat, lng, max_d=MAX_DIST_M):
+    """在 max_d 公尺內挑店名最像的；同分取近的。回傳 (place, 距離, 相似度) 或 None。"""
     best = None
     for p in cands:
         loc = p.get("location", {})
         d = haversine_m((lat, lng), (loc.get("latitude", 0), loc.get("longitude", 0)))
-        if d > MAX_DIST_M:
+        if d > max_d:
             continue
         sim = max(similarity(n, p.get("displayName", {}).get("text", "")) for n in names if n)
+        if sim == 0:   # 完全不像：多半是 Google 回了地址（「４丁目」「南崁路1號」）或隔壁別家店
+            continue
         score = (round(sim, 2), -d)
         if best is None or score > best[0]:
             best = (score, p, d, sim)
@@ -128,27 +135,35 @@ def main():
 
     s = requests.Session()
     hit = miss = 0
-    for i, r in enumerate(todo):
-        if usage.used >= MONTHLY_CAP:
-            print(f"已達本月上限 {MONTHLY_CAP} 次，停止（下個月再跑會接著補）"); break
-        name, zh = r[col["名稱"]], r[col["中文名"]] if "中文名" in col else ""
-        lat, lng = float(r[col["緯度"]]), float(r[col["經度"]])
-        query = zh or re.sub(r"[()@]+", " ", name).strip()
-        lang = "zh-TW" if r[col["都道府縣"]] == "台灣" else "ja"   # 店名用當地語言回傳才比對得到
-        cands = search(s, key, query, lat, lng, lang); usage.add()
-        got = pick(cands, [name, zh], lat, lng)
-        if got:
-            p, d, sim = got
-            r[col["google_place_id"]] = p["id"]; hit += 1
-            if args.test or sim < 0.5:   # 相似度低的印出來人工看
-                print(f"  {'OK ' if sim >= 0.5 else '?? '}{query[:28]:28} → {p['displayName']['text'][:28]:28} {d:5.0f}m sim={sim:.2f}")
-        else:
-            miss += 1
-            if args.test:
-                print(f"  -- {query[:28]:28} → （{MAX_DIST_M}m 內沒有候選）")
-        if (i + 1) % 100 == 0:
-            print(f"  … {i+1}/{len(todo)}", flush=True)
-        time.sleep(0.05)
+    try:
+        for i, r in enumerate(todo):
+            if usage.used >= MONTHLY_CAP:
+                print(f"已達本月上限 {MONTHLY_CAP} 次，停止（下個月再跑會接著補）"); break
+            name, zh = r[col["名稱"]], r[col["中文名"]] if "中文名" in col else ""
+            lat, lng = float(r[col["緯度"]]), float(r[col["經度"]])
+            query = zh or re.sub(r"[()@]+", " ", name).strip()
+            lang = "zh-TW" if r[col["都道府縣"]] == "台灣" else "ja"   # 店名用當地語言回傳才比對得到
+            cands = search(s, key, query, lat, lng, lang); usage.add()
+            got = pick(cands, [name, zh], lat, lng)
+            if not got and usage.used < MONTHLY_CAP:
+                # 備案：店名＋地址再找一次、放寬到 500m（台灣英文店名常常單獨搜不到）
+                query = f"{query} {r[col['地址']]}"
+                cands = search(s, key, query, lat, lng, lang); usage.add()
+                got = pick(cands, [name, zh], lat, lng, 500)
+            if got:
+                p, d, sim = got
+                r[col["google_place_id"]] = p["id"]; hit += 1
+                if args.test or sim < 0.5 or len(todo) <= 150:   # 相似度低（或量少時全部）印出來人工看
+                    print(f"  {'OK ' if sim >= 0.5 else '?? '}{query[:28]:28} → {p['displayName']['text'][:28]:28} {d:5.0f}m sim={sim:.2f}")
+            else:
+                miss += 1
+                if args.test or len(todo) <= 150:
+                    print(f"  -- {query[:28]:28} → （找不到候選）")
+            if (i + 1) % 100 == 0:
+                print(f"  … {i+1}/{len(todo)}", flush=True)
+            time.sleep(0.05)
+    except QuotaExceeded:
+        print("Google 回 429：今天的配額用完了（每日配額依美國太平洋時間午夜重置），已找到的先存檔")
 
     print(f"找到 {hit}、找不到 {miss}；本月累計 {usage.used} 次")
     if args.test:

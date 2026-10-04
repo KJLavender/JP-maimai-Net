@@ -87,7 +87,7 @@ with sync_playwright() as p:
     # 營業中 / 深夜
     chip(page, "只看營業中").click()
     n_open, _ = count(page)
-    badges_ok = all(t in ("營業中",) or "打烊" in t for t in page.locator(".badge").all_inner_texts()[:50])
+    badges_ok = all("營業" in t or "打烊" in t for t in page.locator(".badge").all_inner_texts()[:50])
     check("只看營業中：卡片都是營業中", badges_ok, str(n_open))
     chip(page, "只看營業中").click()
     chip(page, "營業到深夜").click()
@@ -197,7 +197,65 @@ with sync_playwright() as p:
           and "<img" in page.locator(".prefhead").first.inner_text())
     page.evaluate("()=>clearOrigin()")
 
+    # 機台資訊（台灣，MGM）
+    page.locator("#statusrow select").select_option("台灣")
+    mach = page.locator(".card .mach")
+    check("機台資訊：台灣店家有機台清單", mach.count() > 20, str(mach.count()))
+    if mach.count():
+        mach.first.locator("summary").click()
+        check("機台資訊：點開看得到各機台", mach.first.locator("li").first.is_visible(),
+              mach.first.locator("li").first.inner_text()[:40])
+    page.locator("#statusrow select").select_option("")
+
+    # 分享連結：設定篩選 → 網址帶條件 → 朋友開同一個網址看到一樣的結果
+    page.locator("#statusrow select").select_option("大阪府")
+    chip(page, "營業到深夜").click()
+    n_mine, _ = count(page)
+    shared = page.url
+    check("分享：篩選條件寫進網址", "pref=" in shared and "late=1" in shared, shared[-60:])
+    check("分享：有分享按鈕", chip(page, "分享").is_visible())
+    friend = b.new_context(viewport={"width": 1280, "height": 900}).new_page()
+    friend.goto(shared, wait_until="networkidle")
+    n_friend, _ = count(friend)
+    check("分享：朋友打開看到同樣結果", n_friend == n_mine and
+          friend.locator("#statusrow select").input_value() == "大阪府", f"{n_friend} vs {n_mine}")
+    friend.context.close()
+    chip(page, "清除篩選").click()
+    check("分享：清除篩選後網址也清掉", "#" not in page.url or page.url.endswith("#"), page.url[-30:])
+
+    # data.json
+    res = page.request.get(URL.rsplit("/", 1)[0] + "/data.json")
+    dj = res.json() if res.ok else {}
+    check("data.json：可讀且店數正確", dj.get("count") == total and len(dj.get("shops", [])) == total,
+          f"{res.status} {dj.get('count')}")
+    if dj.get("shops"):
+        keys = set(dj["shops"][0])
+        check("data.json：欄位齊全", {"name", "hours", "games", "lat", "lng", "google_maps_url"} <= keys)
+
     check("沒有 JS 錯誤", not errors, "; ".join(errors)[:200])
+    ctx.close()
+
+    # ---------- 營業狀態（固定時鐘） ----------
+    ctx = b.new_context(timezone_id="America/New_York")
+    page = ctx.new_page()
+
+    def status_at(utc, shop):
+        page.clock.set_fixed_time(utc)
+        page.goto(URL, wait_until="domcontentloaded")
+        return page.evaluate("d=>status(d).b&&status(d).b.t", shop)
+
+    wk = ["10:00〜22:00"] * 7
+    t = status_at("2026-10-05T14:30:00Z", {"p": "東京都", "h": "24時間"})          # 日本 週一 23:30
+    check("營業狀態：24 小時營業深夜不會顯示『快打烊』", t == "24 小時營業", t)
+    t = status_at("2026-10-04T03:00:00Z", {"p": "東京都", "h": "10:00〜22:00", "w": [""] + wk[1:]})  # 週日 12:00
+    check("營業狀態：週休日顯示『今日公休』", t == "今日公休", t)
+    t = status_at("2026-10-05T16:00:00Z", {"p": "東京都", "h": "10:00〜02:00", "w": ["10:00〜02:00"] * 7})  # 週二 01:00
+    check("營業狀態：前一天營業到凌晨仍算營業中", t == "還有 60 分打烊", t)
+    t = status_at("2026-10-04T13:30:00Z", {"p": "台灣", "h": "11:00〜21:30",
+                                           "w": ["11:00〜22:00"] + ["11:00〜21:30"] * 5 + ["11:00〜22:00"]})  # 台灣 週日 21:30
+    check("營業狀態：假日用假日的時間（巨城店週日 22:00 打烊）", t == "還有 30 分打烊", t)
+    ws = page.evaluate("w=>weekSummary(w)", ["11:00〜22:00"] + ["11:00〜21:30"] * 5 + ["11:00〜22:00"])
+    check("營業時間：一週摘要", ws == "一–五 11:00〜21:30・六日 11:00〜22:00", ws)
     ctx.close()
 
     # ---------- 手機 ----------

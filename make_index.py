@@ -7,7 +7,7 @@ import csv, glob, os, re, json, datetime
 from collections import Counter
 from urllib.parse import quote
 
-HEADER_KEYS = ["名稱","地址","都道府縣","營業時間","遊戲","郵遞區號","地圖連結","詳細連結","緯度","經度","中文名","google_place_id","營業時間來源"]
+HEADER_KEYS = ["名稱","地址","都道府縣","營業時間","遊戲","郵遞區號","地圖連結","詳細連結","緯度","經度","中文名","google_place_id","營業時間來源","週營業時間","機台","mgm_id"]
 RHYTHM_ORDER = [
     "maimai でらっくす", "CHUNITHM", "オンゲキ",
     "初音ミク Project DIVA Arcade Future Tone",
@@ -31,7 +31,11 @@ def read_rows():
     if not src:
         return [], ""
     print("讀取：", src[0] if len(src) == 1 else f"{len(src)} 個分縣檔")
-    date = datetime.date.fromtimestamp(os.path.getmtime(src[0])).isoformat()
+    # 資料日期以 data_date.txt 為準（update_data.py 寫入），各機器重產生的結果才會一致；沒有就用檔案修改時間
+    if os.path.exists("data_date.txt"):
+        date = open("data_date.txt", encoding="utf-8").read().strip()
+    else:
+        date = datetime.date.fromtimestamp(os.path.getmtime(src[0])).isoformat()
     rows, seen = [], set()
     for fp in src:
         with open(fp, encoding="utf-8-sig") as f:
@@ -72,6 +76,13 @@ def read_rows():
                     rec["gp"] = gp
                 if g("營業時間來源") in ("Google", "MGM"):
                     rec["hs"] = g("營業時間來源")
+                wk = g("週營業時間").split("|")
+                if len(wk) == 7 and len(set(wk)) > 1:   # 一週各天不同才需要（日→六）
+                    rec["w"] = wk
+                if g("機台"):
+                    rec["m"] = json.loads(g("機台"))
+                if g("mgm_id"):
+                    rec["mg"] = g("mgm_id")
                 try:
                     rec["y"], rec["x"] = round(float(g("緯度")), 6), round(float(g("經度")), 6)
                 except ValueError:
@@ -176,6 +187,17 @@ select{font-size:.77rem;padding:5px 9px;border-radius:999px;background:var(--sur
 .dist{font-size:.72rem;font-weight:700;color:var(--cyan);white-space:nowrap}
 .hours{font-size:.82rem;color:var(--text);margin:5px 0 2px}
 .hours .clk{color:var(--muted)}
+.week{font-size:.72rem;color:var(--muted);margin:1px 0 2px 1.4em}
+.mach{margin:8px 0 2px;font-size:.76rem;border:1px solid var(--line);border-radius:9px;padding:6px 10px;background:rgba(255,255,255,.02)}
+.mach summary{cursor:pointer;color:var(--text);list-style:none}
+.mach summary::-webkit-details-marker{display:none}
+.mach summary::before{content:'▸ ';color:var(--muted)}
+.mach[open] summary::before{content:'▾ '}
+.mach ul{margin:6px 0 2px;padding-left:1.1em}
+.mach li{margin:4px 0}
+.mach .mn{color:var(--muted);font-size:.7rem}
+.mach .src{font-size:.68rem;color:var(--muted);margin-top:4px}
+.chip.share{color:var(--cyan);border-color:rgba(38,224,230,.4)}
 .gtags{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 2px}
 .gt{font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:6px;color:#0d0b1a;background:var(--gc,#8f8ac0)}
 .gt.dim{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:600}
@@ -278,22 +300,55 @@ const state={q:'',games:new Set(LS.get('games',[])),openOnly:false,lateOnly:fals
  pref:'',origin:LS.get('origin',null),radius:LS.get('radius',null),
  favs:new Set(LS.get('favs',[])),route:LS.get('route',[]).filter(id=>byId[id]),view:'list'};
 LS.set('route',state.route);
+/* 網址 #q=…&g=…&open=1&late=1&pref=…&r=5&at=lat,lng,地名&view=map
+   只分享「搜尋此地」的地點，不分享 GPS 定位（避免把自己的位置傳出去） */
+function readHash(){const h=new URLSearchParams(location.hash.slice(1));if(![...h.keys()].length)return;
+ state.q=h.get('q')||'';state.games=new Set((h.get('g')||'').split(',').filter(Boolean));
+ state.openOnly=h.get('open')==='1';state.lateOnly=h.get('late')==='1';state.pref=h.get('pref')||'';
+ state.view=h.get('view')==='map'?'map':'list';
+ const at=(h.get('at')||'').split(',');
+ if(at.length>=3&&!isNaN(+at[0])&&!isNaN(+at[1])){state.origin={lat:+at[0],lng:+at[1],label:at.slice(2).join(','),src:'search'};
+   state.radius=[5,10,20].includes(+h.get('r'))?+h.get('r'):null;}}
+function hashOf(){const h=new URLSearchParams();
+ if(state.q)h.set('q',state.q);if(state.games.size)h.set('g',[...state.games].join(','));
+ if(state.openOnly)h.set('open','1');if(state.lateOnly)h.set('late','1');if(state.pref)h.set('pref',state.pref);
+ if(state.origin&&state.origin.src==='search'){const o=state.origin;h.set('at',`${o.lat.toFixed(5)},${o.lng.toFixed(5)},${o.label}`);
+   if(state.radius)h.set('r',state.radius);}
+ if(state.view==='map')h.set('view','map');return h.toString();}
+function writeHash(){const h=hashOf();history.replaceState(null,'',h?'#'+h:location.pathname+location.search);}
+readHash();
 
 function parseHours(s){if(!s)return null;
  if(/24/.test(s)&&/(時間|hour)/.test(s))return[[0,1440]];
  const m=s.match(/(\d{1,2}):(\d{2})\D+?(\d{1,2}):(\d{2})/);if(!m)return null;
  let st=+m[1]*60+ +m[2],en=+m[3]*60+ +m[4];if(en<=st)en+=1440;return[[st,en]];}
-function localMin(off){const d=new Date();const u=d.getTime()+d.getTimezoneOffset()*6e4;
- const j=new Date(u+off*36e5);return j.getHours()*60+j.getMinutes();}
-function isLate(h){const r=parseHours(h);return r?r.some(x=>x[1]>=1440):false;}
+/* 當地現在：星期（0=日）與當天第幾分鐘 */
+function localNow(off){const d=new Date();const u=d.getTime()+d.getTimezoneOffset()*6e4;
+ const j=new Date(u+off*36e5);return{wd:j.getDay(),t:j.getHours()*60+j.getMinutes()};}
 const tzOff=d=>d.p==='台灣'?8:9;
-function status(d){const r=parseHours(d.h);if(!r)return{s:'unknown',b:null};
- const t=localMin(tzOff(d));let open=false,toClose=1e9;
- for(const[s,e]of r){let tt=null;if(t>=s&&t<e)tt=t;else if(t+1440>=s&&t+1440<e)tt=t+1440;
-   if(tt!=null){open=true;toClose=Math.min(toClose,e-tt);}}
+const allDay=s=>!!s&&/24/.test(s)&&/(時間|hour)/.test(s);
+/* 某一天的營業時段：有週營業時間（d.w，日→六）就用當天的，否則每天都是 d.h */
+const dayHours=(d,wd)=>d.w?d.w[wd]:d.h;
+function isLate(d){const h=dayHours(d,localNow(tzOff(d)).wd);if(allDay(h))return true;
+ const r=parseHours(h);return r?r.some(x=>x[1]>=1440):false;}
+function status(d){
+ if(!d.w&&!parseHours(d.h))return{s:'unknown',b:null};
+ const{wd,t}=localNow(tzOff(d)),today=dayHours(d,wd),yest=dayHours(d,(wd+6)%7);
+ if(allDay(today))return{s:'open',b:{c:'open',t:'24 小時營業'}};
+ let open=false,toClose=1e9;
+ for(const[s,e]of parseHours(today)||[])if(t>=s&&t<e){open=true;toClose=Math.min(toClose,e-t);}
+ if(!allDay(yest))for(const[s,e]of parseHours(yest)||[])if(t+1440>=s&&t+1440<e){open=true;toClose=Math.min(toClose,e-t-1440);}
  if(open)return toClose<=60?{s:'open',b:{c:'soon',t:`還有 ${toClose} 分打烊`}}:{s:'open',b:{c:'open',t:'營業中'}};
- let toOpen=1e9;for(const[s,e]of r){let d=((s-t)%1440+1440)%1440;if(d>0)toOpen=Math.min(toOpen,d);}
- return toOpen<=60?{s:'closed',b:{c:'opensoon',t:`再 ${toOpen} 分開門`}}:{s:'closed',b:{c:'shut',t:'已打烊'}};}
+ let toOpen=1e9;
+ for(let k=0;k<8;k++){const h=dayHours(d,(wd+k)%7);const r=allDay(h)?[[0,1440]]:parseHours(h)||[];
+   for(const[s]of r){const dl=k*1440+s-t;if(dl>0)toOpen=Math.min(toOpen,dl);}}
+ if(toOpen<=60)return{s:'closed',b:{c:'opensoon',t:`再 ${toOpen} 分開門`}};
+ return{s:'closed',b:{c:'shut',t:d.w&&!parseHours(today)&&!allDay(today)?'今日公休':'已打烊'}};}
+/* 「一–五 11:00〜21:30・六日 11:00〜22:00」：把同樣時段的連續日併起來（從星期一排） */
+function weekSummary(w){const N='日一二三四五六',ord=[1,2,3,4,5,6,0],g=[];
+ for(const i of ord){const h=w[i]||'公休';const last=g[g.length-1];
+   if(last&&last.h===h)last.d.push(i);else g.push({h,d:[i]});}
+ return g.map(x=>(x.d.length>2?N[x.d[0]]+'–'+N[x.d[x.d.length-1]]:x.d.map(i=>N[i]).join(''))+' '+x.h).join('・');}
 function distKm(a,b){const R=6371,r=x=>x*Math.PI/180;const dLa=r(b.y-a.lat),dLo=r(b.x-a.lng);
  const s=Math.sin(dLa/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.y))*Math.sin(dLo/2)**2;
  return 2*R*Math.asin(Math.sqrt(s));}
@@ -352,6 +407,7 @@ function renderStatusRow(){
  vt.innerHTML=`<button data-v="list"${state.view==='list'?' data-on="1"':''}>清單</button>`+
               `<button data-v="map"${state.view==='map'?' data-on="1"':''}>地圖</button>`;
  vt.querySelectorAll('button').forEach(b=>b.onclick=()=>{state.view=b.dataset.v;renderStatusRow();render();});
+ row.appendChild(chip('share','🔗 分享',false,()=>shareView()));
  row.appendChild(vt);
 }
 function renderAllRows(){renderGameRow();renderLocRow();renderStatusRow();}
@@ -395,6 +451,10 @@ document.getElementById('routestart').onclick=()=>{
  if(mids.length)url+=`&waypoints=${encodeURIComponent(mids.map(d=>`${d.y},${d.x}`).join('|'))}`;
  window.open(url,'_blank');};
 
+window.shareView=async()=>{writeHash();const url=location.href;
+ if(navigator.share){try{await navigator.share({title:'音遊機廳',url});return;}catch(_){}}
+ try{await navigator.clipboard.writeText(url);toast('已複製連結，貼給朋友就能看到同樣的篩選');}
+ catch(_){prompt('複製這個連結：',url);}};
 document.getElementById('q').addEventListener('input',e=>{state.q=e.target.value.trim();render();});
 document.getElementById('geoq').onclick=async()=>{const q=state.q.trim();if(!q)return toast('先在搜尋框輸入地名');
  toast('尋找「'+q+'」…');
@@ -409,7 +469,7 @@ function match(d){
  if(state.q){if(!d._s.includes(foldCJK(state.q.toLowerCase())))return false;}
  for(const g of state.games)if(!d.g.includes(g))return false;
  if(state.openOnly&&status(d).s!=='open')return false;
- if(state.lateOnly&&!isLate(d.h))return false;
+ if(state.lateOnly&&!isLate(d))return false;
  return true;}
 function filtered(){let rs=DATA.filter(match);
  if(state.origin){rs.forEach(d=>d._km=('y'in d)?distKm(state.origin,d):Infinity);
@@ -433,22 +493,34 @@ function navBtns(d){
 function routeBtnHTML(d){if(!('y'in d))return'';
  const on=inRoute(d.i);
  return `<button class="chip rtbtn" data-on="${on?1:0}" onclick="toggleRoute(${d._idx},this)">${on?'✅ 已加入路線':'🧭 加入路線'}</button>`;}
+function machHTML(d){if(!d.m||!d.m.length)return'';
+ const ms=[...d.m].sort((a,b)=>(/maimai|CHUNITHM|オンゲキ|ONGEKI/i.test(b.g)?1:0)-(/maimai|CHUNITHM|オンゲキ|ONGEKI/i.test(a.g)?1:0));
+ const tot={};ms.forEach(m=>tot[m.g]=(tot[m.g]||0)+m.n);   /* 摘要依機種合併台數（官方連線＋獨立網） */
+ const ks=Object.keys(tot);
+ const sum=ks.slice(0,4).map(g=>`${esc(g)} ×${tot[g]}`).join('・')+(ks.length>4?` 等 ${ks.length} 款`:'');
+ return `<details class="mach"><summary>🎮 機台：${sum}</summary><ul>`+ms.map(m=>
+   `<li><b>${esc(m.g)}</b> ${esc(m.v)} ×${m.n}<div class="mn">${[m.coin,m.q].filter(Boolean).map(esc).join(' · ')}`+
+   `${m.upd?` · 更新 ${esc(m.upd)}`:''}${m.note?`<br>${esc(m.note)}`:''}</div></li>`).join('')+
+   `</ul><div class="src">資料：<a href="https://mgm.wind-chime.info/game_center/${esc(d.mg||'')}" target="_blank" rel="noopener">Music Game Map</a>（玩家回報）</div></details>`;}
 function card(d){const star=state.favs.has(d.i)?'★':'☆';
  const ref=d.hs==='Google'?' <span class="clk">（Google 地圖）</span>'
    :d.p==='台灣'?' <span class="clk">（僅供參考）</span>':'';
- const hours=d.h?`<div class="hours"><span class="clk">🕒</span> ${esc(d.h)}${ref}</div>`
+ const today=dayHours(d,localNow(tzOff(d)).wd);
+ const hours=(d.h||d.w)?`<div class="hours"><span class="clk">🕒</span> ${d.w?'今日 ':''}${esc(today||'公休')}${ref}</div>`+
+     (d.w?`<div class="week">${esc(weekSummary(d.w))}</div>`:'')
    :`<div class="hours clk">🕒 官方未登記營業時間（點「店家資訊」看 Google 地圖）</div>`;
  const detail=d.d?`<a class="btn ghost" href="${esc(d.d)}" target="_blank" rel="noopener">官方詳細</a>`:'';
  return `<div class="card"><div class="crow"><div class="cname">
    <button class="star" onclick="toggleFav(${d._idx},this)">${star}</button> ${esc(d.z||d.n)}${d.z?`<div class="ename">${esc(d.n)}</div>`:''}</div>${badgeHTML(d)}</div>
   ${hours}${d.g.length?`<div class="gtags">${gtagsHTML(d.g)}</div>`:''}
+  ${machHTML(d)}
   <div class="addr">${esc(d.a)}</div>
   ${routeBtnHTML(d)}
   <div class="cfoot">${navBtns(d)}${detail}</div></div>`;}
 function popupHTML(d){const b=status(d).b;const star=state.favs.has(d.i)?'★':'☆';
  const nav=('y'in d)?`https://www.google.com/maps/dir/?api=1&destination=${d.y},${d.x}${d.gp?'&destination_place_id='+d.gp:''}`:d.u;
  return `<div class="pop"><div class="pn"><button class="star" onclick="toggleFav(${d._idx},this)">${star}</button> ${esc(d.z||d.n)}</div>
-  ${b?`<span class="badge ${b.c}">${b.t}</span>`:''} <span class="ph">${esc(d.h||'官方未登記營業時間')}</span>
+  ${b?`<span class="badge ${b.c}">${b.t}</span>`:''} <span class="ph">${esc(dayHours(d,localNow(tzOff(d)).wd)||(d.w?'今日公休':'官方未登記營業時間'))}</span>
   <div class="gtags">${gtagsHTML(d.g)}</div>
   <div style="margin-top:8px">${routeBtnHTML(d)}</div>
   <div class="cfoot"><a class="btn" href="${esc(nav)}" target="_blank" rel="noopener">導航前往</a></div></div>`;}
@@ -458,8 +530,10 @@ function ensureMap(){if(map)return true;if(typeof L==='undefined')return false;
  map=L.map('map',{zoomControl:true,preferCanvas:true}).setView([37.5,137.5],5);
  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,
    attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
- cluster=L.markerClusterGroup({maxClusterRadius:50,chunkedLoading:true,showCoverageOnHover:false,
-   iconCreateFunction:c=>{const ms=c.getAllChildMarkers(),n=ms.length,sz=n<10?30:n<50?36:44;
+ const small=innerWidth<500;
+ cluster=L.markerClusterGroup({chunkedLoading:true,showCoverageOnHover:false,
+   maxClusterRadius:z=>z<=6?(small?90:70):z<=9?55:40,   /* 全國縮小看時併得更積極，避免圈圈疊在一起 */
+   iconCreateFunction:c=>{const ms=c.getAllChildMarkers(),n=ms.length,sz=(n<10?30:n<50?36:44)-(small?6:0);
      return L.divIcon({html:n,iconSize:[sz,sz],className:'mc'+(ms.some(m=>m.options.open)?' has-open':'')});}});
  map.addLayer(cluster);return true;}
 function renderMap(rs){const el=document.getElementById('map');
@@ -476,6 +550,7 @@ function renderMap(rs){const el=document.getElementById('map');
  setTimeout(()=>map.invalidateSize(),60);}
 
 function render(){
+ writeHash();
  const listEl=document.getElementById('list'),mapEl=document.getElementById('map');
  const clr=document.getElementById('clearf');
  if(clr)clr.style.display=(state.games.size||state.openOnly||state.lateOnly||state.favOnly||state.pref||state.radius||state.q)?'':'none';
@@ -492,6 +567,7 @@ function render(){
   let html='';for(const p in byp)html+=`<div class="prefhead">${esc(p)}（${byp[p].length}）</div>`+byp[p].map(card).join('');
   listEl.innerHTML=html;}
 }
+if(state.q)document.getElementById('q').value=state.q;
 renderAllRows();render();renderRouteBar();
 if('serviceWorker'in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script></body></html>"""
@@ -503,6 +579,24 @@ html_out = (HTML.replace("__TOTAL__", str(total))
                 .replace("__DATA__", data_json))
 os.makedirs("site", exist_ok=True)
 open("site/index.html","w",encoding="utf-8").write(html_out)
+
+
+def public(r):
+    """data.json 用好讀的欄位名。"""
+    o = {"id": r["i"], "name": r["n"], "name_zh": r.get("z", ""), "region": r["p"], "address": r["a"],
+         "hours": r["h"], "hours_week": r.get("w"), "hours_source": r.get("hs", "SEGA" if r["h"] else ""),
+         "timezone": "Asia/Taipei" if r["p"] == "台灣" else "Asia/Tokyo", "games": r["g"],
+         "lat": r.get("y"), "lng": r.get("x"), "google_place_id": r.get("gp", ""),
+         "google_maps_url": r["u"], "official_url": r["d"]}
+    if r.get("m"):
+        o["machines"] = r["m"]
+    return o
+
+
+json.dump({"updated": data_date, "count": total,
+           "notes": "hours_week: Sun..Sat. machines: Music Game Map (Taiwan only, player-reported).",
+           "shops": [public(r) for r in rows]},
+          open("site/data.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
 open("site/manifest.webmanifest","w",encoding="utf-8").write(
  '{"name":"全日本音遊機廳","short_name":"音遊機廳","start_url":".","scope":".",'
  '"display":"standalone","background_color":"#0d0b1a","theme_color":"#0d0b1a",'
@@ -514,7 +608,7 @@ open("site/icon.svg","w",encoding="utf-8").write(
  '<circle cx="256" cy="256" r="150" fill="none" stroke="#26e0e6" stroke-width="26" '
  'stroke-dasharray="140 800" stroke-linecap="round"/><circle cx="256" cy="256" r="46" fill="#26e0e6"/></svg>')
 open("site/sw.js","w",encoding="utf-8").write(
- "const C='maimai-v11';const A=['./','./index.html','./manifest.webmanifest','./icon.svg'];"
+ "const C='maimai-v12';const A=['./','./index.html','./manifest.webmanifest','./icon.svg'];"
  "self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(A)))});"
  "self.addEventListener('activate',e=>{e.waitUntil(Promise.all(["
  "caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))),"

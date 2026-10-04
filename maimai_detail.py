@@ -98,8 +98,8 @@ def parse_detail(html):
     mz = re.search(r"〒?\s*(\d{3}-\d{4})", text)
     if mz:
         zip_ = mz.group(1)
-    # 營業時間：優先取 info_list 內含「営業時間 / business hours」那行
-    seg = text
+    # 營業時間：只取 info_list 內含「営業時間 / business hours」那行
+    seg = ""   # 只看「営業時間」那一欄；頁尾有「AM4:00～AM7:00 維護」之類的字，不能整頁亂抓
     for li in soup.select("ul.info_list li"):
         t = li.get_text(" ", strip=True).replace("：", ":")
         if re.search(r"営業時間|business hours", t, re.I):

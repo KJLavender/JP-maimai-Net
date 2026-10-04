@@ -85,7 +85,7 @@ def parse_detail(html):
                  for li in soup.select("ul.title_list li")]
     games = [g for g in dict.fromkeys(games) if g]
     text = soup.get_text("\n").replace("：", ":")
-    seg = text
+    seg = ""   # 只看「営業時間」那一欄；頁尾有「AM4:00～AM7:00 維護」之類的字，不能整頁亂抓
     for li in soup.select("ul.info_list li"):
         t = li.get_text(" ", strip=True).replace("：", ":")
         if re.search(r"営業時間|business hours", t, re.I):
