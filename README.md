@@ -32,7 +32,9 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 | 3 | `python maimai_tw.py` | Merges in Taiwan arcades (gm=98, International Version) |
 | 4 | `python add_coords_tw.py` | Adds coordinates for Taiwan |
 | 5 | `python add_tw_names.py` | Matches Chinese names from [Music Game Map](https://mgm.wind-chime.info) by distance + brand (`--scan 400` refreshes the cache) |
-| 6 | `python make_index.py` | Reads `maimai_full.csv` and generates `site/` (single HTML file with the data inlined, plus PWA files) |
+| 6 | `python add_google_ids.py` | Looks up each arcade's Google place ID with the Places API so "store info" and navigation open the exact place (needs `GOOGLE_MAPS_API_KEY` in `.env`; only place IDs are stored, per Google's caching rules) |
+| 7 | `python add_google_hours.py` | Fills opening hours from Google Place Details: all Taiwan arcades plus Japanese ones with no official hours (1,000 free calls/month; the script caps itself at 600) |
+| 8 | `python make_index.py` | Reads `maimai_full.csv` and generates `site/` (single HTML file with the data inlined, plus PWA files) |
 
 Requirements: Python 3.10+, `pip install requests beautifulsoup4`
 
@@ -64,4 +66,4 @@ When you change the page, bump the Service Worker cache name (`maimai-vN`) in `m
 ## 📝 Notes
 
 - Arcade data © SEGA; map data © OpenStreetMap contributors
-- Opening hours: Japan uses SEGA's official data; arcades with no hours registered point you to Google Maps instead. Taiwan uses Music Game Map (SEGA's International listings often carry placeholder hours) and is marked as approximate
+- Opening hours, in order of preference: Japan — SEGA official → Google Maps; Taiwan — Google Maps → Music Game Map → SEGA (International listings often carry placeholder hours). Hours from Google are labelled "Google Maps"; other Taiwan sources are marked as approximate

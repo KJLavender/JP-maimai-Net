@@ -7,3 +7,5 @@ debug_*.html
 # API key 放這裡，絕不進 repo
 .env
 tests/out/
+# Google API 本機用量紀錄
+google_usage.json

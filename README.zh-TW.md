@@ -30,7 +30,9 @@
 | 3 | `python maimai_tw.py` | 併入台灣機廳（gm=98 國際版） |
 | 4 | `python add_coords_tw.py` | 補台灣經緯度 |
 | 5 | `python add_tw_names.py` | 從 [Music Game Map](https://mgm.wind-chime.info) 對應中文店名（距離＋品牌比對；`--scan 400` 重新抓快取） |
-| 6 | `python make_index.py` | 讀 `maimai_full.csv`，產生 `site/`（資料內嵌的單檔 HTML + PWA） |
+| 6 | `python add_google_ids.py` | 用 Google Places API 找每間店的 Google place ID，讓「店家資訊」「導航」直接開到那間店（需 `.env` 內 `GOOGLE_MAPS_API_KEY`；只存 place ID，符合 Google 快取規定） |
+| 7 | `python add_google_hours.py` | 用 Google Place Details 補營業時間：台灣全部＋日本官方沒登記的（每月免費 1,000 次，腳本上限 600 次） |
+| 8 | `python make_index.py` | 讀 `maimai_full.csv`，產生 `site/`（資料內嵌的單檔 HTML + PWA） |
 
 需求：Python 3.10+、`pip install requests beautifulsoup4`
 
@@ -62,4 +64,4 @@ BROWSER_CHANNEL= python tests/test_site.py
 ## 📝 備註
 
 - 店家資料版權屬 SEGA；地圖 © OpenStreetMap 貢獻者
-- 營業時間：日本取自 SEGA 官方；官方沒登記的會提示改看 Google 地圖。台灣以 Music Game Map 為準（SEGA 國際版的時間常是預設值），標示「僅供參考」
+- 營業時間來源依序：日本 SEGA 官方 → Google 地圖；台灣 Google 地圖 → Music Game Map → SEGA（國際版的時間常是預設值）。來自 Google 的標示「Google 地圖」，台灣其他來源標示「僅供參考」
