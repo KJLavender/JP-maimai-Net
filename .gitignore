@@ -6,3 +6,4 @@ __pycache__/
 debug_*.html
 # API key 放這裡，絕不進 repo
 .env
+tests/out/

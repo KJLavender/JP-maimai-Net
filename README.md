@@ -4,7 +4,11 @@
 
 Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project DIVA and other rhythm games. The data comes from SEGA's official ALL.Net location search and is packed into a single-page site that works offline and can be installed to your phone's home screen.
 
-🔗 **Live site: https://maimai-japan-map.netlify.app**
+🔗 **Production: https://maimai-japan-map.netlify.app** (`main`)
+
+🧪 **Staging: https://test--maimai-japan-map.netlify.app** (`test`)
+
+[![CI](https://github.com/KJLavender/JP-maimai-Net/actions/workflows/ci.yml/badge.svg)](https://github.com/KJLavender/JP-maimai-Net/actions/workflows/ci.yml)
 
 > The site UI is in Traditional Chinese; arcade names and addresses are shown as listed by SEGA (Japanese / English), with Chinese names added for Taiwan where available.
 
@@ -32,13 +36,32 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 
 Requirements: Python 3.10+, `pip install requests beautifulsoup4`
 
-## 🚀 Deployment
+## 🌿 Branches & deployment
 
-Netlify is linked to this repo: pushing to `main` publishes `site/` automatically (see `netlify.toml`). Netlify does not run a build, so run `make_index.py` locally and commit `site/` along with your changes.
+| Branch | URL | Rules |
+|---|---|---|
+| `test` | https://test--maimai-japan-map.netlify.app | Collaborators can push directly; every push deploys automatically |
+| `main` | https://maimai-japan-map.netlify.app | Changes only arrive through a PR: CI must pass and the maintainer must approve; merging deploys automatically |
+
+Workflow: make a change → push to `test` → check it on the staging URL → open a PR `test → main` → merge after review → production updates.
+
+**CI** (GitHub Actions, on push / PR to `main` or `test`):
+1. Re-runs `make_index.py` and checks that the committed `site/` is in sync with the data and code
+2. Runs `tests/test_site.py` in Chromium with Playwright (33 checks: search, filters, favorites, geolocation, routes, map, mobile layout)
+
+**CD**: Netlify publishes `site/` as-is (see `netlify.toml`) with no cloud build, so run `make_index.py` locally and commit `site/` with your changes.
+
+Run the tests locally:
+
+```
+pip install playwright && python -m playwright install chromium
+cd site && python -m http.server 8765      # in another terminal
+BROWSER_CHANNEL= python tests/test_site.py
+```
 
 When you change the page, bump the Service Worker cache name (`maimai-vN`) in `make_index.py` so users who installed the PWA get the new version.
 
 ## 📝 Notes
 
 - Arcade data © SEGA; map data © OpenStreetMap contributors
-- Most Taiwan arcades have no opening hours registered with SEGA, so they show "hours not provided"
+- Opening hours: Japan uses SEGA's official data; arcades with no hours registered point you to Google Maps instead. Taiwan uses Music Game Map (SEGA's International listings often carry placeholder hours) and is marked as approximate

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main, test]
+  pull_request:
+    branches: [main, test]
+
+jobs:
+  site-up-to-date:
+    name: site/ is regenerated
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Regenerate site/ from maimai_full.csv
+        run: python make_index.py
+      - name: Fail if site/ was not regenerated before committing
+        # 頁尾「資料更新」日期取自檔案修改時間，checkout 後一定不同，忽略那一行
+        run: |
+          git diff --stat -- site/
+          git diff --exit-code -I '資料更新：' -- site/ || {
+            echo "::error::site/ 跟 maimai_full.csv / make_index.py 不同步，請在本機執行 python make_index.py 後一起 commit"
+            exit 1; }
+
+  e2e:
+    name: E2E tests (Playwright)
+    runs-on: ubuntu-latest
+    needs: site-up-to-date
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Serve site/ and run tests
+        env:
+          BROWSER_CHANNEL: ""
+          PYTHONIOENCODING: utf-8
+        run: |
+          (cd site && python -m http.server 8765 >/dev/null 2>&1 &)
+          sleep 1
+          python tests/test_site.py http://localhost:8765/index.html
+      - name: Upload mobile screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: tests/out/

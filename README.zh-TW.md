@@ -4,7 +4,11 @@
 
 查詢日本與台灣有 maimai DX / CHUNITHM / オンゲキ / Project DIVA 等音遊的機廳。資料來自 SEGA 官方 ALL.Net 設置店舖檢索，整理成一個可離線使用、可安裝到手機桌面的單頁網站。
 
-🔗 **網站：https://maimai-japan-map.netlify.app**
+🔗 **正式版：https://maimai-japan-map.netlify.app**（`main`）
+
+🧪 **測試版：https://test--maimai-japan-map.netlify.app**（`test`）
+
+[![CI](https://github.com/KJLavender/JP-maimai-Net/actions/workflows/ci.yml/badge.svg)](https://github.com/KJLavender/JP-maimai-Net/actions/workflows/ci.yml)
 
 ## ✨ 功能
 
@@ -30,13 +34,32 @@
 
 需求：Python 3.10+、`pip install requests beautifulsoup4`
 
-## 🚀 部署
+## 🌿 分支與部署
 
-Netlify 已連結此 repo：push 到 `main` 就會自動發佈 `site/`（見 `netlify.toml`）。Netlify 不會執行建置，所以請在本機跑完 `make_index.py` 後，把 `site/` 一起 commit。
+| 分支 | 網址 | 規則 |
+|---|---|---|
+| `test` | https://test--maimai-japan-map.netlify.app | 協作者可以直接 push，push 後自動部署 |
+| `main` | https://maimai-japan-map.netlify.app | 只能透過 PR 合併：CI 通過＋維護者 approve，合併後自動部署 |
+
+流程：改東西 → push 到 `test` → 在測試版網址確認 → 開 PR `test → main` → review 通過後合併 → 正式版更新。
+
+**CI**（GitHub Actions，`push` / PR 到 `main`、`test` 時執行）：
+1. 重新執行 `make_index.py`，確認 commit 進來的 `site/` 與資料、程式同步
+2. 用 Playwright 開 Chromium 跑 `tests/test_site.py`（搜尋、篩選、收藏、定位、路線、地圖、手機版面等 33 項）
+
+**CD**：Netlify 直接發佈 `site/`（見 `netlify.toml`），不在雲端建置，所以請在本機跑完 `make_index.py` 後，把 `site/` 一起 commit。
+
+本機跑測試：
+
+```
+pip install playwright && python -m playwright install chromium
+cd site && python -m http.server 8765      # 另開一個終端機
+BROWSER_CHANNEL= python tests/test_site.py
+```
 
 改了頁面內容時，把 `make_index.py` 裡 Service Worker 的快取名稱（`maimai-vN`）加一，已安裝 PWA 的使用者才會拿到新版。
 
 ## 📝 備註
 
 - 店家資料版權屬 SEGA；地圖 © OpenStreetMap 貢獻者
-- 台灣店家多數未在官方登記營業時間，會顯示「時間未提供」
+- 營業時間：日本取自 SEGA 官方；官方沒登記的會提示改看 Google 地圖。台灣以 Music Game Map 為準（SEGA 國際版的時間常是預設值），標示「僅供參考」
