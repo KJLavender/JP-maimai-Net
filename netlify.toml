@@ -1,5 +1,7 @@
-# 網站內容由 `python make_index.py` 產生到 site/
+# Netlify 部署時執行 build_site.py，從 data/ ＋ templates/ 產生 site/ 再發佈
+# （site/ 不進 repo；Netlify 的建置環境內建 Python 3，腳本只用標準函式庫）
 [build]
+  command = "python3 scripts/build_site.py"
   publish = "site"
 
 # data.json 給 Discord bot 等外部程式讀取

@@ -32,7 +32,7 @@
 │   └── data_date.txt     資料更新日
 ├── scripts/              爬蟲與資料處理
 │   ├── update_data.py    ⭐ 一鍵更新（其他腳本多半由它呼叫）
-│   ├── build_site.py     產生網站 site/
+│   ├── build_site.py     data/ ＋ templates/ → 產生網站 site/
 │   ├── scrape_jp.py      爬日本機廳（SEGA ALL.Net gm=96）
 │   ├── scrape_tw.py      爬台灣機廳（gm=98）
 │   ├── coords_jp.py      日本座標（SEGA 清單頁）
@@ -42,7 +42,11 @@
 │   ├── google_place_ids.py  Google place ID（需 API key）
 │   ├── google_hours.py   Google 營業時間（需 API key）
 │   └── paths.py          所有檔案路徑
-├── site/                 網站（Netlify 直接發佈這個資料夾）
+├── templates/            前端原始檔（要改網頁就改這裡）
+│   ├── index.html        頁面骨架（__DATA__ 等佔位符由 build_site.py 填入）
+│   ├── style.css / app.js
+│   └── sw.js / manifest.webmanifest / icon.svg   PWA
+├── site/                 產生出來的網站（不進 repo，Netlify 部署時產生）
 ├── tests/test_site.py    E2E 測試（Playwright）
 └── .github/workflows/    CI、每週自動更新
 ```
@@ -52,7 +56,7 @@
 | 指令 | 說明 |
 |---|---|
 | `python scripts/update_data.py --mgm` | **日常更新只要跑這個**：重爬 SEGA（日本＋台灣）、對回舊資料保留 Google／中文名／機台欄位、GSI 補座標、更新 Music Game Map，輸出變動摘要 `data/update_summary.md`。GitHub Actions 每週一自動執行（不含 `--mgm`，見下方） |
-| `python scripts/build_site.py` | 讀 `data/arcades.csv`，產生 `site/`（資料內嵌的單檔 HTML＋PWA＋`data.json`） |
+| `python scripts/build_site.py` | 讀 `data/arcades.csv` 與 `templates/`，產生 `site/`（店家資料內嵌在 `index.html`，另輸出 `data.json`）；Service Worker 的快取版本依內容自動計算 |
 | `python scripts/google_place_ids.py` | 用 Google Places API 找每間店的 Google place ID，讓「店家資訊」「導航」直接開到那間店（需 `.env` 內 `GOOGLE_MAPS_API_KEY`；只存 place ID，符合 Google 快取規定） |
 | `python scripts/google_hours.py` | 用 Google Place Details 補營業時間（含一週各天時段）：台灣全部＋日本官方沒登記的；不會超過每日配額與每月免費 1,000 次 |
 
@@ -70,22 +74,22 @@
 流程：改東西 → push 到 `test` → 在測試版網址確認 → 開 PR `test → main` → review 通過後合併 → 正式版更新。
 
 **CI**（GitHub Actions，`push` / PR 到 `main`、`test` 時執行）：
-1. 重新執行 `scripts/build_site.py`，確認 commit 進來的 `site/` 與資料、程式同步
-2. 用 Playwright 開 Chromium 跑 `tests/test_site.py`（搜尋、篩選、收藏、定位、路線、地圖、手機版面等 33 項）
+執行 `scripts/build_site.py` 產生網站，再用 Playwright 開 Chromium 跑 `tests/test_site.py`（搜尋、篩選、收藏、定位、路線、地圖、機台資訊、分享連結、營業狀態、手機版面等 46 項）
 
 **每週自動更新**（`.github/workflows/update-data.yml`）：每週一 03:00（日本時間）重爬資料，有變動就開 PR 到 `test`，PR 內文列出新增／消失的店、遊戲與營業時間變動；E2E 測試會先在流程裡跑過。也可以在 Actions 頁面手動執行。Music Game Map 會擋 GitHub Actions 的連線，所以自動更新沿用 `data/mgm_cache.csv`；台灣中文名／機台資訊請偶爾在本機跑 `--mgm` 更新（掃描失敗時會自動保留舊快取）。
 
-**CD**：Netlify 直接發佈 `site/`（見 `netlify.toml`），不在雲端建置，所以請在本機跑完 `scripts/build_site.py` 後，把 `site/` 一起 commit。
+**CD**：Netlify 部署時執行 `python3 scripts/build_site.py` 產生 `site/` 再發佈（見 `netlify.toml`）。`site/` 不進 repo，改網頁只要改 `templates/`、改資料只要改 `data/`。
 
 本機跑測試：
 
 ```
 pip install playwright && python -m playwright install chromium
+python scripts/build_site.py
 cd site && python -m http.server 8765      # 另開一個終端機
 BROWSER_CHANNEL= python tests/test_site.py
 ```
 
-改了頁面內容時，把 `scripts/build_site.py` 裡 Service Worker 的快取名稱（`maimai-vN`）加一，已安裝 PWA 的使用者才會拿到新版。
+Service Worker 的快取名稱是整個網站內容的雜湊值，任何檔案一改就會自動換新，已安裝 PWA 的使用者會拿到新版，不用手動改版本號。
 
 ## 🤖 資料 API
 
