@@ -2,10 +2,16 @@
 .netlify
 __pycache__/
 *.pyc
-# 爬蟲 --test 時存下來的除錯頁
-debug_*.html
+
 # API key 放這裡，絕不進 repo
 .env
+
+# 本機產生、不需要進 repo 的檔案
+data/google_usage.json
+data/update_summary.md
+data/scraped_jp.csv
+debug_*.html
 tests/out/
-# Google API 本機用量紀錄
-google_usage.json
+
+# 舊版資料與輸出（本機保留，不上傳）
+archive/
