@@ -1,0 +1,5 @@
+# 文字檔在 repo 裡一律存成 LF。Python 的 csv 模組在任何系統都寫 CRLF，
+# 沒有這個設定時，GitHub Actions（Linux）產生的 CSV 會被當成整個檔案每一行都改了。
+* text=auto eol=lf
+*.csv text eol=lf
+*.png binary
