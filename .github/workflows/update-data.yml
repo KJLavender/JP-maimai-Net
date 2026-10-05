@@ -35,15 +35,15 @@ jobs:
       - name: Scrape and merge
         env:
           PYTHONIOENCODING: utf-8
-        run: python update_data.py ${{ (github.event_name == 'schedule' || inputs.mgm) && '--mgm' || '' }}
+        run: python scripts/update_data.py ${{ (github.event_name == 'schedule' || inputs.mgm) && '--mgm' || '' }}
 
       - name: Regenerate site/
-        run: python make_index.py
+        run: python scripts/build_site.py
 
       - name: Anything changed?
         id: diff
         run: |
-          if git diff --quiet -- maimai_full.csv mgm_cache.csv; then
+          if git diff --quiet -- data/arcades.csv data/mgm_cache.csv; then
             echo "changed=false" >> "$GITHUB_OUTPUT"; echo "資料沒有變動"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -70,9 +70,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
-          git add maimai_full.csv mgm_cache.csv data_date.txt site/
+          git add data/ site/
           git commit -m "資料更新 $(date -u +%Y-%m-%d)"
           git push -f origin "$branch"
-          { cat update_summary.md; echo; echo "E2E 測試已在更新流程中通過。合併到 test 後會部署到測試版。"; } > body.md
+          { cat data/update_summary.md; echo; echo "E2E 測試已在更新流程中通過。合併到 test 後會部署到測試版。"; } > body.md
           gh pr create --base test --head "$branch" --title "資料更新 $(date -u +%Y-%m-%d)" --body-file body.md \
             || gh pr edit "$branch" --body-file body.md

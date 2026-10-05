@@ -15,13 +15,13 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
-      - name: Regenerate site/ from maimai_full.csv
-        run: python make_index.py
+      - name: Regenerate site/ from data/arcades.csv
+        run: python scripts/build_site.py
       - name: Fail if site/ was not regenerated before committing
         run: |
           git diff --stat -- site/
           git diff --exit-code -- site/ || {
-            echo "::error::site/ 跟 maimai_full.csv / make_index.py 不同步，請在本機執行 python make_index.py 後一起 commit"
+            echo "::error::site/ 跟 data/arcades.csv / scripts/build_site.py 不同步，請在本機執行 python scripts/build_site.py 後一起 commit"
             exit 1; }
 
   e2e:
