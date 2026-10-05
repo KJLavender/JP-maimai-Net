@@ -153,6 +153,19 @@ def save_cache(rows):
                         json.dumps(r["machines"], ensure_ascii=False, separators=(",", ":"))])
 
 
+def refresh_cache(session, upto):
+    """重新掃描 MGM 並更新快取；掃到的店數不到舊快取一半時視為失敗（例如 GitHub Actions 的 IP
+    被 MGM 擋掉，每頁都抓不到），保留舊快取，避免把中文名／機台資訊整批清空。回傳實際採用的資料。"""
+    old = load_cache()
+    rows = scan(session, upto)
+    if old and len(rows) < len(old) * 0.5:
+        print(f"！MGM 只掃到 {len(rows)} 間（快取有 {len(old)} 間），疑似連線被擋 → 保留舊快取")
+        return old
+    save_cache(rows)
+    print(f"MGM 掃描完成 {len(rows)} 間 → data/mgm_cache.csv")
+    return rows
+
+
 def merge_names(mgm_rows, test=False):
     if not os.path.exists(paths.ARCADES):
         print("找不到 data/arcades.csv"); return
@@ -247,9 +260,7 @@ def main():
         merge_names(rows, test=True); return
 
     if args.scan:
-        rows = scan(s, args.scan)
-        save_cache(rows)
-        print(f"MGM 掃描完成 {len(rows)} 間 → data/mgm_cache.csv")
+        rows = refresh_cache(s, args.scan)
     else:
         rows = load_cache()
         if not rows:

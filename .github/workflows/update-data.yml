@@ -5,11 +5,6 @@ on:
   schedule:
     - cron: "0 18 * * 0"
   workflow_dispatch:
-    inputs:
-      mgm:
-        description: "一併重抓 Music Game Map（台灣中文名／機台資訊）"
-        type: boolean
-        default: true
 
 permissions:
   contents: write
@@ -35,7 +30,9 @@ jobs:
       - name: Scrape and merge
         env:
           PYTHONIOENCODING: utf-8
-        run: python scripts/update_data.py ${{ (github.event_name == 'schedule' || inputs.mgm) && '--mgm' || '' }}
+        # 不加 --mgm：Music Game Map 擋 GitHub Actions 的 IP，台灣中文名／機台資訊沿用 data/mgm_cache.csv，
+        # 要更新請在本機跑 python scripts/update_data.py --mgm
+        run: python scripts/update_data.py
 
       - name: Regenerate site/
         run: python scripts/build_site.py

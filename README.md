@@ -53,7 +53,7 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 
 | Command | What it does |
 |---|---|
-| `python scripts/update_data.py --mgm` | **The only command you need for routine updates**: re-scrapes SEGA (Japan + Taiwan), carries over the Google / Chinese-name / machine columns from the previous data, fills missing coordinates via GSI, refreshes Music Game Map and writes a change summary to `data/update_summary.md`. GitHub Actions runs it every Monday |
+| `python scripts/update_data.py --mgm` | **The only command you need for routine updates**: re-scrapes SEGA (Japan + Taiwan), carries over the Google / Chinese-name / machine columns from the previous data, fills missing coordinates via GSI, refreshes Music Game Map and writes a change summary to `data/update_summary.md`. GitHub Actions runs it every Monday (without `--mgm`, see below) |
 | `python scripts/build_site.py` | Reads `data/arcades.csv` and generates `site/` (single HTML file with the data inlined, PWA files and `data.json`) |
 | `python scripts/google_place_ids.py` | Looks up each arcade's Google place ID with the Places API so "store info" and navigation open the exact place (needs `GOOGLE_MAPS_API_KEY` in `.env`; only place IDs are stored, per Google's caching rules) |
 | `python scripts/google_hours.py` | Fills opening hours (including per-weekday hours) from Google Place Details: all Taiwan arcades plus Japanese ones with no official hours; never exceeds the daily quota or the 1,000 free calls per month |
@@ -75,7 +75,7 @@ Workflow: make a change → push to `test` → check it on the staging URL → o
 1. Re-runs `scripts/build_site.py` and checks that the committed `site/` is in sync with the data and code
 2. Runs `tests/test_site.py` in Chromium with Playwright (33 checks: search, filters, favorites, geolocation, routes, map, mobile layout)
 
-**Weekly data update** (`.github/workflows/update-data.yml`): every Monday at 03:00 JST the data is re-scraped; if anything changed, a PR is opened against `test` listing new/removed arcades and game/hours changes. E2E tests run inside the job first. It can also be triggered by hand from the Actions tab.
+**Weekly data update** (`.github/workflows/update-data.yml`): every Monday at 03:00 JST the data is re-scraped; if anything changed, a PR is opened against `test` listing new/removed arcades and game/hours changes. E2E tests run inside the job first. It can also be triggered by hand from the Actions tab. Music Game Map blocks requests from GitHub Actions, so the weekly job reuses `data/mgm_cache.csv`; refresh Taiwan Chinese names / machine details by running `--mgm` locally now and then (a failed scan automatically keeps the old cache).
 
 **CD**: Netlify publishes `site/` as-is (see `netlify.toml`) with no cloud build, so run `scripts/build_site.py` locally and commit `site/` with your changes.
 

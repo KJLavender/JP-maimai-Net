@@ -51,7 +51,7 @@
 
 | 指令 | 說明 |
 |---|---|
-| `python scripts/update_data.py --mgm` | **日常更新只要跑這個**：重爬 SEGA（日本＋台灣）、對回舊資料保留 Google／中文名／機台欄位、GSI 補座標、更新 Music Game Map，輸出變動摘要 `data/update_summary.md`。GitHub Actions 每週一自動執行 |
+| `python scripts/update_data.py --mgm` | **日常更新只要跑這個**：重爬 SEGA（日本＋台灣）、對回舊資料保留 Google／中文名／機台欄位、GSI 補座標、更新 Music Game Map，輸出變動摘要 `data/update_summary.md`。GitHub Actions 每週一自動執行（不含 `--mgm`，見下方） |
 | `python scripts/build_site.py` | 讀 `data/arcades.csv`，產生 `site/`（資料內嵌的單檔 HTML＋PWA＋`data.json`） |
 | `python scripts/google_place_ids.py` | 用 Google Places API 找每間店的 Google place ID，讓「店家資訊」「導航」直接開到那間店（需 `.env` 內 `GOOGLE_MAPS_API_KEY`；只存 place ID，符合 Google 快取規定） |
 | `python scripts/google_hours.py` | 用 Google Place Details 補營業時間（含一週各天時段）：台灣全部＋日本官方沒登記的；不會超過每日配額與每月免費 1,000 次 |
@@ -73,7 +73,7 @@
 1. 重新執行 `scripts/build_site.py`，確認 commit 進來的 `site/` 與資料、程式同步
 2. 用 Playwright 開 Chromium 跑 `tests/test_site.py`（搜尋、篩選、收藏、定位、路線、地圖、手機版面等 33 項）
 
-**每週自動更新**（`.github/workflows/update-data.yml`）：每週一 03:00（日本時間）重爬資料，有變動就開 PR 到 `test`，PR 內文列出新增／消失的店、遊戲與營業時間變動；E2E 測試會先在流程裡跑過。也可以在 Actions 頁面手動執行。
+**每週自動更新**（`.github/workflows/update-data.yml`）：每週一 03:00（日本時間）重爬資料，有變動就開 PR 到 `test`，PR 內文列出新增／消失的店、遊戲與營業時間變動；E2E 測試會先在流程裡跑過。也可以在 Actions 頁面手動執行。Music Game Map 會擋 GitHub Actions 的連線，所以自動更新沿用 `data/mgm_cache.csv`；台灣中文名／機台資訊請偶爾在本機跑 `--mgm` 更新（掃描失敗時會自動保留舊快取）。
 
 **CD**：Netlify 直接發佈 `site/`（見 `netlify.toml`），不在雲端建置，所以請在本機跑完 `scripts/build_site.py` 後，把 `site/` 一起 commit。
 

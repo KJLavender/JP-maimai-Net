@@ -181,9 +181,8 @@ def main():
         w.writeheader(); w.writerows(rows)
 
     import mgm_tw as names
-    if args.mgm:
-        names.save_cache(names.scan(requests.Session(), 400))
-    names.merge_names(names.load_cache())   # 台灣中文名／機台資訊（沒加 --mgm 就只用快取）
+    # 台灣中文名／機台資訊（沒加 --mgm 就只用快取；掃描失敗也會退回快取）
+    names.merge_names(names.refresh_cache(requests.Session(), 400) if args.mgm else names.load_cache())
 
     jst = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).date()
     open(paths.DATA_DATE, "w", encoding="utf-8").write(jst.isoformat() + "\n")
