@@ -34,7 +34,7 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 │   └── data_date.txt     Data date
 ├── scripts/              Scrapers and data processing
 │   ├── update_data.py    ⭐ One-command update (calls most of the other scripts)
-│   ├── build_site.py     Generates the site/ folder
+│   ├── build_site.py     data/ + templates/ → generates site/
 │   ├── scrape_jp.py      Scrapes Japanese arcades (SEGA ALL.Net gm=96)
 │   ├── scrape_tw.py      Scrapes Taiwan arcades (gm=98)
 │   ├── coords_jp.py      Japan coordinates (SEGA list pages)
@@ -44,7 +44,11 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 │   ├── google_place_ids.py  Google place IDs (needs an API key)
 │   ├── google_hours.py   Google opening hours (needs an API key)
 │   └── paths.py          All file paths
-├── site/                 The website (Netlify publishes this folder as-is)
+├── templates/            Front-end sources (edit these to change the page)
+│   ├── index.html        Page skeleton (__DATA__ etc. are filled in by build_site.py)
+│   ├── style.css / app.js
+│   └── sw.js / manifest.webmanifest / icon.svg   PWA
+├── site/                 Generated website (not committed; built by Netlify on deploy)
 ├── tests/test_site.py    E2E tests (Playwright)
 └── .github/workflows/    CI and the weekly data update
 ```
@@ -54,7 +58,7 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 | Command | What it does |
 |---|---|
 | `python scripts/update_data.py --mgm` | **The only command you need for routine updates**: re-scrapes SEGA (Japan + Taiwan), carries over the Google / Chinese-name / machine columns from the previous data, fills missing coordinates via GSI, refreshes Music Game Map and writes a change summary to `data/update_summary.md`. GitHub Actions runs it every Monday (without `--mgm`, see below) |
-| `python scripts/build_site.py` | Reads `data/arcades.csv` and generates `site/` (single HTML file with the data inlined, PWA files and `data.json`) |
+| `python scripts/build_site.py` | Reads `data/arcades.csv` and `templates/` and generates `site/` (arcade data inlined in `index.html`, plus `data.json`); the Service Worker cache version is derived from the content automatically |
 | `python scripts/google_place_ids.py` | Looks up each arcade's Google place ID with the Places API so "store info" and navigation open the exact place (needs `GOOGLE_MAPS_API_KEY` in `.env`; only place IDs are stored, per Google's caching rules) |
 | `python scripts/google_hours.py` | Fills opening hours (including per-weekday hours) from Google Place Details: all Taiwan arcades plus Japanese ones with no official hours; never exceeds the daily quota or the 1,000 free calls per month |
 
@@ -72,22 +76,22 @@ Requirements: Python 3.10+, `pip install requests beautifulsoup4`
 Workflow: make a change → push to `test` → check it on the staging URL → open a PR `test → main` → merge after review → production updates.
 
 **CI** (GitHub Actions, on push / PR to `main` or `test`):
-1. Re-runs `scripts/build_site.py` and checks that the committed `site/` is in sync with the data and code
-2. Runs `tests/test_site.py` in Chromium with Playwright (33 checks: search, filters, favorites, geolocation, routes, map, mobile layout)
+Builds the site with `scripts/build_site.py`, then runs `tests/test_site.py` in Chromium with Playwright (46 checks: search, filters, favorites, geolocation, routes, map, machine details, share links, opening status, mobile layout)
 
 **Weekly data update** (`.github/workflows/update-data.yml`): every Monday at 03:00 JST the data is re-scraped; if anything changed, a PR is opened against `test` listing new/removed arcades and game/hours changes. E2E tests run inside the job first. It can also be triggered by hand from the Actions tab. Music Game Map blocks requests from GitHub Actions, so the weekly job reuses `data/mgm_cache.csv`; refresh Taiwan Chinese names / machine details by running `--mgm` locally now and then (a failed scan automatically keeps the old cache).
 
-**CD**: Netlify publishes `site/` as-is (see `netlify.toml`) with no cloud build, so run `scripts/build_site.py` locally and commit `site/` with your changes.
+**CD**: on deploy, Netlify runs `python3 scripts/build_site.py` to generate `site/` and publishes it (see `netlify.toml`). `site/` is not committed: change `templates/` to change the page, `data/` to change the data.
 
 Run the tests locally:
 
 ```
 pip install playwright && python -m playwright install chromium
+python scripts/build_site.py
 cd site && python -m http.server 8765      # in another terminal
 BROWSER_CHANNEL= python tests/test_site.py
 ```
 
-When you change the page, bump the Service Worker cache name (`maimai-vN`) in `scripts/build_site.py` so users who installed the PWA get the new version.
+The Service Worker cache name is a hash of the whole site, so any change automatically produces a new cache and users who installed the PWA get the new version — no manual version bump needed.
 
 ## 🤖 Data API
 

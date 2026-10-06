@@ -7,6 +7,7 @@ __pycache__/
 .env
 
 # 本機產生、不需要進 repo 的檔案
+site/
 data/google_usage.json
 data/update_summary.md
 data/scraped_jp.csv

@@ -7,32 +7,16 @@ on:
     branches: [main, test]
 
 jobs:
-  site-up-to-date:
-    name: site/ is regenerated
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.11"
-      - name: Regenerate site/ from data/arcades.csv
-        run: python scripts/build_site.py
-      - name: Fail if site/ was not regenerated before committing
-        run: |
-          git diff --stat -- site/
-          git diff --exit-code -- site/ || {
-            echo "::error::site/ 跟 data/arcades.csv / scripts/build_site.py 不同步，請在本機執行 python scripts/build_site.py 後一起 commit"
-            exit 1; }
-
   e2e:
     name: E2E tests (Playwright)
     runs-on: ubuntu-latest
-    needs: site-up-to-date
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
+      - name: Build site/ from data/ + templates/
+        run: python scripts/build_site.py
       - name: Install Playwright
         run: |
           pip install playwright
