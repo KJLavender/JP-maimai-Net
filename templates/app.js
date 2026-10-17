@@ -191,7 +191,9 @@ document.getElementById('geoq').onclick=async()=>{const q=state.q.trim();if(!q)r
 function match(d){
  if(state.pref&&d.p!==state.pref)return false;
  if(state.favOnly&&!state.favs.has(d.i))return false;
- if(state.q){if(!d._s.includes(foldCJK(state.q.toLowerCase())))return false;}
+ if(state.q){
+  const query = foldCJK(state.q.toLowerCase());
+  if(!d._s.includes(query))return false;}
  for(const g of state.games)if(!d.g.includes(g))return false;
  if(state.openOnly&&status(d).s!=='open')return false;
  if(state.lateOnly&&!isLate(d))return false;
