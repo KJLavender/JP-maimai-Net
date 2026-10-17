@@ -502,8 +502,8 @@ function match(d, query) {
   if (state.favOnly && !state.favs.has(d.i)) return false;
   if (query && !d._s.includes(query)) return false;
 
-  for (const g of state.games){
-      if (!d.g.includes(g)) return false;
+  for (const g of state.games) {
+    if (!d.g.includes(g)) return false;
   }
 
   if (state.openOnly && status(d).s !== 'open') return false;
