@@ -7,6 +7,17 @@ on:
     branches: [main, test]
 
 jobs:
+  format:
+    name: Format check (Prettier)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: templates/ 要符合 .prettierrc.json 的排版
+        run: |
+          npx --yes prettier@3.9.10 --check templates/ || {
+            echo "::error::templates/ 排版不符，請在本機執行 npx prettier@3.9.10 --write templates/ 後再 commit"
+            exit 1; }
+
   e2e:
     name: E2E tests (Playwright)
     runs-on: ubuntu-latest
