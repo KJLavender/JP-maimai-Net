@@ -76,7 +76,7 @@ Requirements: Python 3.10+, `pip install requests beautifulsoup4`
 Workflow: make a change → push to `test` → check it on the staging URL → open a PR `test → main` → merge after review → production updates.
 
 **CI** (GitHub Actions, on push / PR to `main` or `test`):
-Builds the site with `scripts/build_site.py`, then runs `tests/test_site.py` in Chromium with Playwright (46 checks: search, filters, favorites, geolocation, routes, map, machine details, share links, opening status, mobile layout)
+Checks the formatting of `templates/` (Prettier), builds the site with `scripts/build_site.py`, then runs `tests/test_site.py` in Chromium with Playwright (46 checks: search, filters, favorites, geolocation, routes, map, machine details, share links, opening status, mobile layout)
 
 **Weekly data update** (`.github/workflows/update-data.yml`): every Monday at 03:00 JST the data is re-scraped; if anything changed, a PR is opened against `test` listing new/removed arcades and game/hours changes. E2E tests run inside the job first. It can also be triggered by hand from the Actions tab. Music Game Map blocks requests from GitHub Actions, so the weekly job reuses `data/mgm_cache.csv`; refresh Taiwan Chinese names / machine details by running `--mgm` locally now and then (a failed scan automatically keeps the old cache).
 
@@ -89,6 +89,12 @@ pip install playwright && python -m playwright install chromium
 python scripts/build_site.py
 cd site && python -m http.server 8765      # in another terminal
 BROWSER_CHANNEL= python tests/test_site.py
+```
+
+**Formatting**: `templates/` is formatted with [Prettier](https://prettier.io) (config in `.prettierrc.json`) and CI checks it. After editing the front end, run:
+
+```
+npx prettier@3.9.10 --write templates/
 ```
 
 The Service Worker cache name is a hash of the whole site, so any change automatically produces a new cache and users who installed the PWA get the new version — no manual version bump needed.

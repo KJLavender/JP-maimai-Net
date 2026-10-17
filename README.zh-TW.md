@@ -74,7 +74,7 @@
 流程：改東西 → push 到 `test` → 在測試版網址確認 → 開 PR `test → main` → review 通過後合併 → 正式版更新。
 
 **CI**（GitHub Actions，`push` / PR 到 `main`、`test` 時執行）：
-執行 `scripts/build_site.py` 產生網站，再用 Playwright 開 Chromium 跑 `tests/test_site.py`（搜尋、篩選、收藏、定位、路線、地圖、機台資訊、分享連結、營業狀態、手機版面等 46 項）
+檢查 `templates/` 的排版（Prettier），並執行 `scripts/build_site.py` 產生網站，再用 Playwright 開 Chromium 跑 `tests/test_site.py`（搜尋、篩選、收藏、定位、路線、地圖、機台資訊、分享連結、營業狀態、手機版面等 46 項）
 
 **每週自動更新**（`.github/workflows/update-data.yml`）：每週一 03:00（日本時間）重爬資料，有變動就開 PR 到 `test`，PR 內文列出新增／消失的店、遊戲與營業時間變動；E2E 測試會先在流程裡跑過。也可以在 Actions 頁面手動執行。Music Game Map 會擋 GitHub Actions 的連線，所以自動更新沿用 `data/mgm_cache.csv`；台灣中文名／機台資訊請偶爾在本機跑 `--mgm` 更新（掃描失敗時會自動保留舊快取）。
 
@@ -87,6 +87,12 @@ pip install playwright && python -m playwright install chromium
 python scripts/build_site.py
 cd site && python -m http.server 8765      # 另開一個終端機
 BROWSER_CHANNEL= python tests/test_site.py
+```
+
+**排版**：`templates/` 用 [Prettier](https://prettier.io) 統一格式（設定在 `.prettierrc.json`），CI 會檢查。改完前端後執行：
+
+```
+npx prettier@3.9.10 --write templates/
 ```
 
 Service Worker 的快取名稱是整個網站內容的雜湊值，任何檔案一改就會自動換新，已安裝 PWA 的使用者會拿到新版，不用手動改版本號。

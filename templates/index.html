@@ -1,43 +1,82 @@
-<!doctype html><html lang="zh-Hant"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>全日本音遊機廳</title>
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
-<meta name="theme-color" content="#0d0b1a"><link rel="apple-touch-icon" href="icon.svg">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-<link rel="stylesheet" href="style.css">
-</head><body>
-<header><div class="hbar">
- <div class="trow"><h1 class="title">全日本<b>音遊</b>機廳</h1><span class="eyebrow">Arcade Finder</span></div>
- <div class="sub">__TOTAL__ 間 · 營業狀態依當地時間計算</div>
- <div class="qrow">
-   <input id="q" placeholder="搜尋店名、地址、縣市，或輸入地名後按「搜尋此地」" autocomplete="off">
-   <button class="qbtn" id="geoq">搜尋此地</button>
- </div>
- <div class="filters">
-   <div class="frow"><span class="flabel">音遊</span><span class="chips" id="gamerow"></span></div>
-   <div class="frow"><span class="flabel">位置</span><span class="chips" id="locrow"></span></div>
-   <div class="frow"><span class="flabel">篩選</span><span class="chips" id="statusrow"></span></div>
- </div>
-</div></header>
-<div class="wrap">
- <div class="count" id="count"></div>
- <div id="map"></div>
- <div id="list"></div>
- <div class="foot">資料更新：__DATE__ · 來源 ALL.Net 設置店舖檢索 · 營業狀態依當地時間即時計算（日本 UTC+9、台灣 UTC+8）</div>
- <a class="top" href="#" onclick="scrollTo(0,0);return false">▲ 回到頂端</a>
-</div>
-<div id="routebar">
- <span class="rcount">已選 0/9 站</span>
- <button id="routeclear" class="btn ghost small">清空</button>
- <button id="routestart" class="btn small">開始導覽</button>
-</div>
-<div id="toast"></div>
-<noscript>此頁需要 JavaScript，請用 Chrome 或 Safari 開啟。</noscript>
-<script id="config" type="application/json">__CONFIG__</script>
-<script id="data" type="application/json">__DATA__</script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-<script src="app.js"></script>
-</body></html>
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>全日本音遊機廳</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#0d0b1a" />
+    <link rel="apple-touch-icon" href="icon.svg" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="hbar">
+        <div class="trow">
+          <h1 class="title">全日本<b>音遊</b>機廳</h1>
+          <span class="eyebrow">Arcade Finder</span>
+        </div>
+        <div class="sub">__TOTAL__ 間 · 營業狀態依當地時間計算</div>
+        <div class="qrow">
+          <input
+            id="q"
+            placeholder="搜尋店名、地址、縣市，或輸入地名後按「搜尋此地」"
+            autocomplete="off"
+          />
+          <button class="qbtn" id="geoq">搜尋此地</button>
+        </div>
+        <div class="filters">
+          <div class="frow">
+            <span class="flabel">音遊</span><span class="chips" id="gamerow"></span>
+          </div>
+          <div class="frow">
+            <span class="flabel">位置</span><span class="chips" id="locrow"></span>
+          </div>
+          <div class="frow">
+            <span class="flabel">篩選</span><span class="chips" id="statusrow"></span>
+          </div>
+        </div>
+      </div>
+    </header>
+    <div class="wrap">
+      <div class="count" id="count"></div>
+      <div id="map"></div>
+      <div id="list"></div>
+      <div class="foot">
+        資料更新：__DATE__ · 來源 ALL.Net 設置店舖檢索 · 營業狀態依當地時間即時計算（日本
+        UTC+9、台灣 UTC+8）
+      </div>
+      <a
+        class="top"
+        href="#"
+        onclick="
+          scrollTo(0, 0);
+          return false;
+        "
+        >▲ 回到頂端</a
+      >
+    </div>
+    <div id="routebar">
+      <span class="rcount">已選 0/9 站</span>
+      <button id="routeclear" class="btn ghost small">清空</button>
+      <button id="routestart" class="btn small">開始導覽</button>
+    </div>
+    <div id="toast"></div>
+    <noscript>此頁需要 JavaScript，請用 Chrome 或 Safari 開啟。</noscript>
+    <script id="config" type="application/json">
+      __CONFIG__
+    </script>
+    <script id="data" type="application/json">
+      __DATA__
+    </script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
