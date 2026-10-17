@@ -497,20 +497,23 @@ document.getElementById('geoq').onclick = async () => {
   }
 };
 
-function match(d) {
+function match(d, query) {
   if (state.pref && d.p !== state.pref) return false;
   if (state.favOnly && !state.favs.has(d.i)) return false;
-  if (state.q) {
-    const query = foldCJK(state.q.toLowerCase());
-    if (!d._s.includes(query)) return false;
+  if (query && !d._s.includes(query)) return false;
+
+  for (const g of state.games){
+      if (!d.g.includes(g)) return false;
   }
-  for (const g of state.games) if (!d.g.includes(g)) return false;
+
   if (state.openOnly && status(d).s !== 'open') return false;
   if (state.lateOnly && !isLate(d)) return false;
   return true;
 }
+
 function filtered() {
-  let rs = DATA.filter(match);
+  const query = foldCJK(state.q.toLowerCase());
+  let rs = DATA.filter(d => match(d, query));
   if (state.origin) {
     rs.forEach(d => (d._km = 'y' in d ? distKm(state.origin, d) : Infinity));
     if (state.radius) rs = rs.filter(d => d._km <= state.radius);
