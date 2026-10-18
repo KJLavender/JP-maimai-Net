@@ -4,7 +4,8 @@ import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
-SITE = os.path.join(ROOT, "site")
+SITE = os.path.join(ROOT, "site")                      # 產生出來的網站（不進 repo）
+TEMPLATES = os.path.join(ROOT, "templates")            # 前端原始檔（HTML／CSS／JS／PWA）
 
 ARCADES = os.path.join(DATA, "arcades.csv")            # 主資料：所有機廳
 MGM_CACHE = os.path.join(DATA, "mgm_cache.csv")        # Music Game Map 快取（台灣中文名／機台）

@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-# 「全日本音遊機廳」網站產生器：讀 data/arcades.csv → 產生 site/（單檔 HTML＋PWA＋data.json）。
+# 「全日本音遊機廳」網站產生器：data/arcades.csv ＋ templates/（前端原始檔）→ site/。
+# site/ 是產生出來的結果，不進 repo；Netlify 部署時會執行本腳本（見 netlify.toml）。
 # 功能：營業判斷（依星期幾）＋倒數、音遊按鈕(自動生成)、其他遊戲下拉、定位/距離/半徑、
 #       深夜快篩、★收藏、精準導航、機廳巡り路線(多點導航)、台灣機台資訊、分享連結、
 #       記住偏好(localStorage)、清單/地圖雙檢視、資料更新日。
 # 用法：python scripts/build_site.py
 import paths
-import csv, os, re, json, datetime
+import csv, os, re, json, datetime, hashlib
 from collections import Counter
 from urllib.parse import quote
 
@@ -94,31 +95,38 @@ print(f"共 {total} 間；有座標 {sum(1 for r in rows if 'y' in r)}；資料�
 print("音遊按鈕：", "、".join(f"{g}({cnt[g]})" for g in rhythm) or "（無）")
 print("其他遊戲（下拉）：", len(others), "款")
 
-data_json = json.dumps(rows, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
-rhythm_json = json.dumps(rhythm, ensure_ascii=False)
-others_json = json.dumps([[g, cnt[g]] for g in others], ensure_ascii=False)
-
-TEMPLATE_DIR = os.path.join(paths.ROOT, "templates")
+# ---------------- 輸出 site/ ----------------
+STATIC = ["style.css", "app.js", "manifest.webmanifest", "icon.svg"]   # 原樣複製的前端檔案
 
 
 def read_template(name):
-    return open(os.path.join(TEMPLATE_DIR, name), encoding="utf-8").read()
+    return open(os.path.join(paths.TEMPLATES, name), encoding="utf-8").read()
 
 
-def write_text(path, text):
-    with open(path, "w", encoding="utf-8", newline="\n") as f:
+def write_text(name, text):
+    with open(os.path.join(paths.SITE, name), "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
 
 
-HTML = read_template("index.html")
+def inline_json(obj):
+    """塞進 <script type="application/json"> 的 JSON：跳脫「</」，資料裡出現 </script 才不會截斷頁面。"""
+    return json.dumps(obj, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
-html_out = (HTML.replace("__TOTAL__", str(total))
-                .replace("__DATE__", data_date)
-                .replace("__RHYTHM__", rhythm_json)
-                .replace("__OTHERS__", others_json)
-                .replace("__DATA__", data_json))
+
+config = {"rhythm": rhythm, "others": [[g, cnt[g]] for g in others]}
+html_out = (read_template("index.html")
+            .replace("__TOTAL__", str(total))
+            .replace("__DATE__", data_date)
+            .replace("__CONFIG__", inline_json(config))
+            .replace("__DATA__", inline_json(rows)))
 os.makedirs(paths.SITE, exist_ok=True)
-write_text(os.path.join(paths.SITE, "index.html"), html_out)
+write_text("index.html", html_out)
+for name in STATIC:
+    write_text(name, read_template(name))
+
+# Service Worker 快取名稱 = 網站內容的雜湊：任何檔案改了就換新快取，不用再手動改版本號
+digest = hashlib.sha256("".join([html_out] + [read_template(n) for n in STATIC]).encode()).hexdigest()[:10]
+write_text("sw.js", read_template("sw.js").replace("__CACHE__", digest))
 
 
 def public(r):
@@ -133,14 +141,9 @@ def public(r):
     return o
 
 
-json.dump({"updated": data_date, "count": total,
-           "notes": "hours_week: Sun..Sat. machines: Music Game Map (Taiwan only, player-reported).",
-           "shops": [public(r) for r in rows]},
-          open(os.path.join(paths.SITE, "data.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
-write_text(os.path.join(paths.SITE, "icon.svg"),
- '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
- '<rect width="512" height="512" rx="120" fill="#0d0b1a"/>'
- '<circle cx="256" cy="256" r="150" fill="none" stroke="#ff3d9a" stroke-width="26"/>'
- '<circle cx="256" cy="256" r="150" fill="none" stroke="#26e0e6" stroke-width="26" '
- 'stroke-dasharray="140 800" stroke-linecap="round"/><circle cx="256" cy="256" r="46" fill="#26e0e6"/></svg>')
-print("→ site/ 產生完成")
+write_text("data.json", json.dumps(
+    {"updated": data_date, "count": total,
+     "notes": "hours_week: Sun..Sat. machines: Music Game Map (Taiwan only, player-reported).",
+     "shops": [public(r) for r in rows]},
+    ensure_ascii=False, separators=(",", ":")))
+print(f"→ site/ 產生完成（快取版本 {digest}）")
