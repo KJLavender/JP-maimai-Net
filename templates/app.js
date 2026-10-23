@@ -621,9 +621,17 @@ function ensureMap() {
   if (map) return true;
   if (typeof L === 'undefined') return false;
   map = L.map('map', { zoomControl: true, preferCanvas: true }).setView([37.5, 137.5], 5);
+  // 灰階 OSM 底圖（見 style.css .basemap）＋ OpenRailwayMap 鐵路圖層：只突顯交通
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
+    className: 'basemap',
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(map);
+  L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    subdomains: 'abc',
+    attribution:
+      'Style: <a href="https://www.openrailwaymap.org/">OpenRailwayMap</a> (CC-BY-SA 2.0)',
   }).addTo(map);
   const small = innerWidth < 500;
   cluster = L.markerClusterGroup({
@@ -659,7 +667,7 @@ function renderMap(rs) {
       return L.circleMarker([d.y, d.x], {
         radius: 7,
         weight: 2,
-        color: '#0d0b1a',
+        color: '#fff',
         fillOpacity: 0.95,
         open,
         fillColor: open ? '#39d98a' : '#ff3d9a',

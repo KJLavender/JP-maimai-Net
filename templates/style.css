@@ -573,11 +573,12 @@ body.has-route #toast {
 }
 .leaflet-container {
   font-family: var(--f);
-  background: #0d0b1a;
+  background: #e9e9e9;
 }
-/* .leaflet-tile-pane {
-  filter: invert(1) hue-rotate(200deg) brightness(0.9) contrast(0.85) saturate(0.35);
-} */
+/* OSM 底圖轉灰階當背景，只讓上面的鐵路圖層（OpenRailwayMap）有顏色 */
+.basemap {
+  filter: grayscale(1) brightness(1.08) contrast(0.9);
+}
 .leaflet-popup-content {
   margin: 11px 13px;
 }
@@ -612,17 +613,17 @@ body.has-route #toast {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(255, 61, 154, 0.25);
-  border: 2px solid var(--magenta);
+  /* 淺色底圖上要用實心底色，數字才看得清楚 */
+  background: var(--magenta);
+  border: 2px solid #fff;
   color: #fff;
   font-weight: 700;
   font-size: 0.75rem;
-  box-shadow: 0 0 0 4px rgba(255, 61, 154, 0.12);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 .mc.has-open {
-  background: rgba(57, 217, 138, 0.22);
-  border-color: var(--green);
-  box-shadow: 0 0 0 4px rgba(57, 217, 138, 0.12);
+  background: var(--green);
+  color: #062b1c;
 }
 .legend {
   display: inline-flex;
