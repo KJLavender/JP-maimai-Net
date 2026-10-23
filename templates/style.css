@@ -575,9 +575,9 @@ body.has-route #toast {
   font-family: var(--f);
   background: #0d0b1a;
 }
-.leaflet-tile-pane {
+/* .leaflet-tile-pane {
   filter: invert(1) hue-rotate(200deg) brightness(0.9) contrast(0.85) saturate(0.35);
-}
+} */
 .leaflet-popup-content {
   margin: 11px 13px;
 }
