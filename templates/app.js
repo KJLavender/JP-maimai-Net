@@ -19,9 +19,8 @@ DATA.forEach((d, i) => {
 });
 const byId = {};
 DATA.forEach(d => (byId[d.i] = d));
-const { rhythm: RHYTHM, others: OTHERS } = JSON.parse(
-  document.getElementById('config').textContent,
-);
+const CONFIG = JSON.parse(document.getElementById('config').textContent);
+const { rhythm: RHYTHM, others: OTHERS } = CONFIG;
 const MAX_ROUTE = 9;
 const LS = {
   get: (k, d) => {
@@ -81,6 +80,7 @@ const state = {
   origin: LS.get('origin', null),
   radius: LS.get('radius', null),
   favs: new Set(LS.get('favs', [])),
+  visited: new Set(LS.get('visited', [])), // 🏆 制霸：去過的店（只存在這個瀏覽器）
   route: LS.get('route', []).filter(id => byId[id]),
   view: 'list',
 };
@@ -95,7 +95,9 @@ function readHash() {
   state.openOnly = h.get('open') === '1';
   state.lateOnly = h.get('late') === '1';
   state.pref = h.get('pref') || '';
-  state.view = h.get('view') === 'map' ? 'map' : 'list';
+  state.view = ['list', 'map', 'conquest', 'stats'].includes(h.get('view'))
+    ? h.get('view')
+    : 'list';
   const at = (h.get('at') || '').split(',');
   if (at.length >= 3 && !isNaN(+at[0]) && !isNaN(+at[1])) {
     state.origin = { lat: +at[0], lng: +at[1], label: at.slice(2).join(','), src: 'search' };
@@ -114,7 +116,7 @@ function hashOf() {
     h.set('at', `${o.lat.toFixed(5)},${o.lng.toFixed(5)},${o.label}`);
     if (state.radius) h.set('r', state.radius);
   }
-  if (state.view === 'map') h.set('view', 'map');
+  if (state.view !== 'list') h.set('view', state.view);
   return h.toString();
 }
 function writeHash() {
@@ -350,9 +352,14 @@ function renderStatusRow() {
   row.appendChild(clr);
   const vt = document.createElement('div');
   vt.className = 'viewtoggle';
-  vt.innerHTML =
-    `<button data-v="list"${state.view === 'list' ? ' data-on="1"' : ''}>清單</button>` +
-    `<button data-v="map"${state.view === 'map' ? ' data-on="1"' : ''}>地圖</button>`;
+  vt.innerHTML = [
+    ['list', '清單'],
+    ['map', '地圖'],
+    ['conquest', '🏆 制霸'],
+    ['stats', '📊 統計'],
+  ]
+    .map(([v, t]) => `<button data-v="${v}"${state.view === v ? ' data-on="1"' : ''}>${t}</button>`)
+    .join('');
   vt.querySelectorAll('button').forEach(
     b =>
       (b.onclick = () => {
@@ -599,7 +606,7 @@ function card(d) {
   ${hours}${d.g.length ? `<div class="gtags">${gtagsHTML(d.g)}</div>` : ''}
   ${machHTML(d)}
   <div class="addr">${esc(d.a)}</div>
-  ${routeBtnHTML(d)}
+  <div class="cacts">${routeBtnHTML(d)}${visitedBtnHTML(d)}</div>
   <div class="cfoot">${navBtns(d)}${detail}</div></div>`;
 }
 function popupHTML(d) {
@@ -612,7 +619,7 @@ function popupHTML(d) {
   return `<div class="pop"><div class="pn"><button class="star" onclick="toggleFav(${d._idx},this)">${star}</button> ${esc(d.z || d.n)}</div>
   ${b ? `<span class="badge ${b.c}">${b.t}</span>` : ''} <span class="ph">${esc(dayHours(d, localNow(tzOff(d)).wd) || (d.w ? '今日公休' : '官方未登記營業時間'))}</span>
   <div class="gtags">${gtagsHTML(d.g)}</div>
-  <div style="margin-top:8px">${routeBtnHTML(d)}</div>
+  <div class="cacts">${routeBtnHTML(d)}${visitedBtnHTML(d)}</div>
   <div class="cfoot"><a class="btn" href="${esc(nav)}" target="_blank" rel="noopener">導航前往</a></div></div>`;
 }
 
@@ -698,6 +705,16 @@ function render() {
   writeHash();
   const listEl = document.getElementById('list'),
     mapEl = document.getElementById('map');
+  // 制霸、統計是整頁的檢視，不吃上面的篩選
+  const pages = { conquest: renderConquest, stats: renderStats };
+  for (const v of Object.keys(pages))
+    document.getElementById(v).style.display = state.view === v ? 'block' : 'none';
+  document.getElementById('count').style.display = pages[state.view] ? 'none' : '';
+  if (pages[state.view]) {
+    mapEl.style.display = listEl.style.display = 'none';
+    pages[state.view](document.getElementById(state.view));
+    return;
+  }
   const clr = document.getElementById('clearf');
   if (clr)
     clr.style.display =
@@ -749,5 +766,18 @@ if (state.q) document.getElementById('q').value = state.q;
 renderAllRows();
 render();
 renderRouteBar();
+// 頁面開著時又點了分享連結（只有 # 後面變了，瀏覽器不會重新載入）→ 重新讀篩選條件
+addEventListener('hashchange', () => {
+  readHash();
+  document.getElementById('q').value = state.q;
+  renderAllRows();
+  render();
+});
+// 統計圖依容器寬度畫，視窗大小改變時重畫
+let _rs;
+addEventListener('resize', () => {
+  clearTimeout(_rs);
+  _rs = setTimeout(() => state.view === 'stats' && render(), 200);
+});
 if ('serviceWorker' in navigator && location.protocol === 'https:')
   navigator.serviceWorker.register('sw.js').catch(() => {});

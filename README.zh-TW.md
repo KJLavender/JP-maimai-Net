@@ -20,6 +20,8 @@
 - 🧭 **機廳巡迴路線**：最多 9 站，一鍵開 Google Maps 多點導航
 - 🎰 **台灣機台資訊**：台數、版本／框體、投幣方式、排隊方式、玩家備註（來自 Music Game Map）
 - 🔗 **分享連結**：篩選條件存在網址裡，傳給朋友打開就是同樣的結果（只分享「搜尋此地」，不會分享你的 GPS 位置）
+- 🏆 **機廳制霸**：店家按「🏁 標記去過」，47 都道府縣方格地圖依達成比例上色，可匯出成圖片分享；紀錄只存在你自己的瀏覽器（不需要帳號、不會上傳），換手機可以用「備份／還原」代碼搬過去
+- 📊 **統計**：各音遊設置店數的變化（每週更新多一個點）、各都道府縣機廳數排行，可切換遊戲、可看表格
 - 🗺️ **清單／地圖雙檢視**：叢集標記，綠＝營業中
 - 📱 **PWA**：可加到主畫面，離線也能看清單
 
@@ -29,9 +31,11 @@
 ├── data/                 資料
 │   ├── arcades.csv       所有機廳（主資料）
 │   ├── mgm_cache.csv     Music Game Map 快取（台灣中文名、機台資訊）
+│   ├── history.json      每次更新的機廳數快照（統計頁用）
 │   └── data_date.txt     資料更新日
 ├── scripts/              爬蟲與資料處理
 │   ├── update_data.py    ⭐ 一鍵更新（其他腳本多半由它呼叫）
+│   ├── history.py        記錄歷史快照；`--backfill` 從 git 歷史重建
 │   ├── build_site.py     data/ ＋ templates/ → 產生網站 site/
 │   ├── scrape_jp.py      爬日本機廳（SEGA ALL.Net gm=96）
 │   ├── scrape_tw.py      爬台灣機廳（gm=98）
@@ -45,6 +49,7 @@
 ├── templates/            前端原始檔（要改網頁就改這裡）
 │   ├── index.html        頁面骨架（__DATA__ 等佔位符由 build_site.py 填入）
 │   ├── style.css / app.js
+│   ├── conquest.js / stats.js   🏆 制霸、📊 統計
 │   └── sw.js / manifest.webmanifest / icon.svg   PWA
 ├── site/                 產生出來的網站（不進 repo，Netlify 部署時產生）
 ├── tests/test_site.py    E2E 測試（Playwright）
@@ -74,7 +79,7 @@
 流程：改東西 → push 到 `test` → 在測試版網址確認 → 開 PR `test → main` → review 通過後合併 → 正式版更新。
 
 **CI**（GitHub Actions，`push` / PR 到 `main`、`test` 時執行）：
-檢查 `templates/` 的排版（Prettier），並執行 `scripts/build_site.py` 產生網站，再用 Playwright 開 Chromium 跑 `tests/test_site.py`（搜尋、篩選、收藏、定位、路線、地圖、機台資訊、分享連結、營業狀態、手機版面等 46 項）
+檢查 `templates/` 的排版（Prettier），並執行 `scripts/build_site.py` 產生網站，再用 Playwright 開 Chromium 跑 `tests/test_site.py`（搜尋、篩選、收藏、定位、路線、地圖、機台資訊、分享連結、營業狀態、手機版面等 61 項）
 
 **每週自動更新**（`.github/workflows/update-data.yml`）：每週一 03:00（日本時間）重爬資料，有變動就開 PR 到 `test`，PR 內文列出新增／消失的店、遊戲與營業時間變動；E2E 測試會先在流程裡跑過。也可以在 Actions 頁面手動執行。Music Game Map 會擋 GitHub Actions 的連線，所以自動更新沿用 `data/mgm_cache.csv`；台灣中文名／機台資訊請偶爾在本機跑 `--mgm` 更新（掃描失敗時會自動保留舊快取）。
 
