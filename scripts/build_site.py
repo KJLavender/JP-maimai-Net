@@ -96,7 +96,8 @@ print("音遊按鈕：", "、".join(f"{g}({cnt[g]})" for g in rhythm) or "（無
 print("其他遊戲（下拉）：", len(others), "款")
 
 # ---------------- 輸出 site/ ----------------
-STATIC = ["style.css", "app.js", "manifest.webmanifest", "icon.svg"]   # 原樣複製的前端檔案
+STATIC = ["style.css", "sync.js", "conquest.js", "stats.js", "app.js", "manifest.webmanifest", "icon.svg",
+          "privacy.html"]   # 原樣複製的前端檔案
 
 
 def read_template(name):
@@ -113,7 +114,30 @@ def inline_json(obj):
     return json.dumps(obj, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
 
-config = {"rhythm": rhythm, "others": [[g, cnt[g]] for g in others]}
+# 統計頁的歷史（只留圖表用得到的：日期、各遊戲店數、總數）
+HISTORY = os.path.join(paths.DATA, "history.json")
+history = [{"date": h["date"], **{k: {"total": h[k]["total"], "games": h[k]["games"]} for k in ("jp", "tw") if k in h}}
+           for h in (json.load(open(HISTORY, encoding="utf-8")) if os.path.exists(HISTORY) else [])]
+config = {"rhythm": rhythm, "others": [[g, cnt[g]] for g in others], "history": history}
+
+
+def oauth_client_id():
+    """Google 同步的 OAuth 用戶端 ID（公開資訊，不是密鑰）：Netlify 環境變數或本機 .env。"""
+    v = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+    if not v and os.path.exists(paths.ENV):
+        for line in open(paths.ENV, encoding="utf-8"):
+            if line.startswith("GOOGLE_OAUTH_CLIENT_ID="):
+                v = line.split("=", 1)[1].strip()
+    if v and not re.fullmatch(r"[\w-]+\.apps\.googleusercontent\.com", v):
+        print("⚠ GOOGLE_OAUTH_CLIENT_ID 格式不對（應為 xxx.apps.googleusercontent.com），略過")
+        v = ""
+    return v
+
+
+client_id = oauth_client_id()
+if client_id:
+    config["googleClientId"] = client_id
+print("Google 同步：", "開啟" if client_id else "關閉（沒設 GOOGLE_OAUTH_CLIENT_ID）")
 html_out = (read_template("index.html")
             .replace("__TOTAL__", str(total))
             .replace("__DATE__", data_date)

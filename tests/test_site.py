@@ -2,7 +2,7 @@
 用法: python tests/test_site.py [url]       （預設 http://localhost:8765/index.html）
 環境變數: BROWSER_CHANNEL（預設 chrome；設成空字串用 Playwright 內建 Chromium）
           SCREENSHOT_DIR（手機截圖輸出位置，預設 tests/out）"""
-import os, sys, re
+import json, os, sys, re
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
@@ -232,8 +232,148 @@ with sync_playwright() as p:
         keys = set(dj["shops"][0])
         check("data.json：欄位齊全", {"name", "hours", "games", "lat", "lng", "google_maps_url"} <= keys)
 
+    # 🏆 制霸
+    def view(name):
+        page.locator(".viewtoggle button", has_text=name).click()
+        page.wait_for_timeout(200)
+
+    def stat(i):
+        return page.locator("#conquest .stat .sv").nth(i).inner_text().split("/")[0].strip()
+
+    page.locator("#statusrow select").select_option("大阪府")
+    vb = page.locator(".card .vbtn").first
+    vb.click()
+    check("制霸：店家卡片可以標記去過", "去過" in vb.inner_text() and vb.get_attribute("data-on") == "1")
+    view("制霸")
+    check("制霸：去過 1 間、制霸 1 縣", stat(0) == "1" and stat(1) == "1", f"{stat(0)} / {stat(1)}")
+    tile = page.locator('.ctile[data-p="大阪府"]')
+    check("制霸：方格地圖有 47 都道府縣，大阪有上色", page.locator(".ctile").count() == 47
+          and "on" in (tile.get_attribute("class") or "") and tile.inner_text().split("\n")[-1].startswith("1/"),
+          tile.inner_text().replace("\n", " "))
+    page.reload(wait_until="networkidle")
+    check("制霸：重新整理後紀錄還在（localStorage）", stat(0) == "1")
+    check("制霸：網址記住目前檢視", "view=conquest" in page.url)
+
+    code = page.evaluate("()=>backupCode()")
+    page.evaluate("()=>{localStorage.removeItem('maimai:visited')}")
+    page.reload(wait_until="networkidle")
+    check("備份：清掉之後是 0", stat(0) == "0")
+    page.once("dialog", lambda d: d.accept(code))
+    page.locator(".cq-more summary").click()   # 備份代碼收在「不用 Google 帳號？」裡
+    page.locator("#cq-restore").click()
+    page.wait_for_timeout(300)
+    check("備份：貼上備份代碼可以還原", stat(0) == "1", code[:20] + "…")
+
+    page.evaluate("()=>{navigator.canShare=undefined}")   # 桌機不跳系統分享，直接下載
+    with page.expect_download() as dl:
+        page.locator("#cq-export").click()
+    png = os.path.join(SHOTS, "conquest.png")
+    dl.value.save_as(png)
+    check("制霸：匯出圖片（PNG）", os.path.getsize(png) > 20000 and open(png, "rb").read(4) == b"\x89PNG",
+          f"{os.path.getsize(png) // 1024} KB")
+    tile.click()
+    page.wait_for_timeout(300)
+    check("制霸：點縣名會跳到那個縣的清單", page.locator("#statusrow select").input_value() == "大阪府"
+          and page.locator("#list").is_visible())
+
+    # 📊 統計
+    view("統計")
+    hist = page.evaluate("()=>CONFIG.history.filter(h=>h.jp).length")
+    lines = page.locator("#st-line path").count()
+    check("統計：折線圖有 5 款遊戲", lines == 5 and hist >= 2, f"{lines} 條線、{hist} 筆歷史")
+    page.locator("#st-hit").hover(position={"x": 20, "y": 40})
+    check("統計：滑過折線圖有數值提示", page.locator("#st-line .ctip").is_visible())
+    check("統計：長條圖預設前 15 名", page.locator("#st-bar .bar").count() == 15)
+    page.locator("#st-more").click()
+    n_all = page.locator("#st-bar .bar").count()
+    check("統計：顯示全部地區", n_all >= 47, str(n_all))
+    page.locator("#st-games .chip", has_text="cherrit").click()
+    n_ch = page.locator("#st-bar .bar").count()
+    check("統計：切換成 cherrit 只算有 cherrit 的地區", 0 < n_ch < n_all, f"{n_ch} < {n_all}")
+    page.locator("#st-table").click()
+    check("統計：表格檢視", page.locator("#st-line table tr").count() == hist + 1)
+    page.locator("#st-table").click()
+    page.evaluate("()=>{localStorage.removeItem('maimai:visited');location.hash=''}")
+
     check("沒有 JS 錯誤", not errors, "; ".join(errors)[:200])
     ctx.close()
+
+    # ---------- ☁️ Google 同步（模擬 Google 登入與 Drive，兩個瀏覽器當兩台裝置） ----------
+    cloud = {}   # 假的 Drive：只有一個 appDataFolder 檔案
+    FAKE_GIS = ("window.google={accounts:{oauth2:{initTokenClient:o=>({requestAccessToken:()=>"
+                "setTimeout(()=>o.callback({access_token:'tok',expires_in:3600}),10)}),revoke:(t,cb)=>cb&&cb()}}};")
+
+    def fake_drive(route):
+        req, u = route.request, urlparse(route.request.url)
+        if req.headers.get("authorization") != "Bearer tok":
+            return route.fulfill(status=401, body="")
+        if req.method == "GET" and u.path == "/drive/v3/files":
+            return route.fulfill(json={"files": [{"id": "f1"}] if "doc" in cloud else []})
+        if req.method == "GET" and u.path == "/drive/v3/files/f1":
+            return route.fulfill(json=cloud["doc"])
+        if req.method == "PATCH" and u.path == "/upload/drive/v3/files/f1":
+            cloud["doc"] = json.loads(req.post_data)
+            return route.fulfill(json={"id": "f1"})
+        if req.method == "POST" and u.path == "/upload/drive/v3/files":
+            body = req.post_data.split("\r\n\r\n")[2].split("\r\n--")[0]   # multipart 第二段是內容
+            meta = json.loads(req.post_data.split("\r\n\r\n")[1].split("\r\n--")[0])
+            cloud["doc"], cloud["meta"] = json.loads(body), meta
+            return route.fulfill(json={"id": "f1"})
+        route.fulfill(status=404, body="")
+
+    def device():
+        c = b.new_context(viewport={"width": 1100, "height": 900})
+        c.add_init_script("window.MJM_CLIENT_ID='test-client'")
+        c.route("https://accounts.google.com/gsi/client", lambda r: r.fulfill(body=FAKE_GIS, content_type="text/javascript"))
+        c.route("https://www.googleapis.com/**", fake_drive)
+        pg = c.new_page()
+        pg.goto(URL + "#view=conquest", wait_until="networkidle")
+        return pg
+
+    def cloud_on(i):
+        return [k for k, (on, _) in cloud.get("doc", {}).get("visited", {}).items() if on]
+
+    A = device()
+    ids = A.evaluate("()=>[DATA[0].i, DATA[1].i]")
+    check("同步：有 Google 同步按鈕與隱私權說明", A.locator("#sync-now").is_visible()
+          and A.request.get(URL.rsplit("/", 1)[0] + "/privacy.html").ok)
+    A.evaluate("()=>toggleVisited(0)")
+    A.locator("#sync-now").click()
+    A.wait_for_function("()=>JSON.parse(localStorage.getItem('maimai:syncOn'))")
+    check("同步：裝置 A 第一次同步會在 appDataFolder 建檔",
+          cloud.get("meta", {}).get("parents") == ["appDataFolder"] and cloud_on(0) == [ids[0]], str(cloud_on(0)))
+    B = device()
+    B.evaluate("()=>toggleVisited(1)")
+    B.locator("#sync-now").click()
+    B.wait_for_function("()=>JSON.parse(localStorage.getItem('maimai:syncOn'))")
+    b_has = B.evaluate("()=>[...state.visited]")
+    check("同步：裝置 B 同步後兩台的紀錄合併", sorted(b_has) == sorted(ids) and sorted(cloud_on(0)) == sorted(ids),
+          f"B={len(b_has)} 雲端={len(cloud_on(0))}")
+    A.wait_for_timeout(50)
+    A.evaluate("()=>toggleVisited(0)")   # A 取消第一間；登入中會在 1.5 秒後自動上傳
+    A.wait_for_timeout(2500)
+    check("同步：登入中修改會自動上傳（A 取消的那間雲端也取消）", ids[0] not in cloud_on(0), str(cloud_on(0)))
+    id2 = A.evaluate("""()=>{const f=window.fetch;   // 上傳到一半時又標記一間
+      window.fetch=(u,o)=>{if(o&&o.method==='PATCH'&&!window._t){window._t=1;toggleVisited(2)}return f(u,o)};
+      syncNow(false);return DATA[2].i}""")
+    A.wait_for_timeout(2500)
+    check("同步：上傳途中的修改不會漏掉（會再傳一次）", id2 in cloud_on(0)
+          and not A.evaluate("()=>JSON.parse(localStorage.getItem('maimai:syncDirty'))"), str(cloud_on(0)))
+    A.evaluate("()=>toggleVisited(2)")
+    A.wait_for_timeout(2500)
+    B.locator("#sync-now").click()
+    B.wait_for_timeout(800)
+    check("同步：B 再同步，較新的「取消」勝出", B.evaluate("()=>[...state.visited]") == [ids[1]])
+    B.reload(wait_until="networkidle")
+    check("同步：開過同步的裝置一開頁就先載入 Google 登入", B.evaluate("()=>!!window.google"))
+    B.evaluate("()=>toggleFav(0)")
+    check("同步：還沒登入時修改會提示去按立即同步", "立即同步" in B.locator("#toast").inner_text()
+          and B.evaluate("()=>JSON.parse(localStorage.getItem('maimai:syncDirty'))"))
+    B.locator("#sync-stop").click()
+    check("同步：停止同步", not B.evaluate("()=>JSON.parse(localStorage.getItem('maimai:syncOn'))")
+          and B.locator("#sync-now").inner_text().startswith("☁️"))
+    A.context.close()
+    B.context.close()
 
     # ---------- 營業狀態（固定時鐘） ----------
     ctx = b.new_context(timezone_id="America/New_York")

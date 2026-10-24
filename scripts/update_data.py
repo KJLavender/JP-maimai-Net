@@ -186,6 +186,8 @@ def main():
 
     jst = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).date()
     open(paths.DATA_DATE, "w", encoding="utf-8").write(jst.isoformat() + "\n")
+    import history
+    history.record(jst.isoformat())   # 統計頁的歷史快照（data/history.json）
     text, n = summary(old, list(csv.DictReader(open(CSV, encoding="utf-8-sig"))))
     open(paths.SUMMARY, "w", encoding="utf-8").write(text)
     log(text)

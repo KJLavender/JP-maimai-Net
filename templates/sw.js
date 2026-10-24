@@ -1,7 +1,17 @@
 // Service Worker：讓網站可以離線開、可以加到主畫面。
 // __CACHE__ 由 build_site.py 依網站內容自動算出，內容一改快取名稱就跟著變，使用者會拿到新版。
 const C = 'maimai-__CACHE__';
-const A = ['./', './index.html', './style.css', './app.js', './manifest.webmanifest', './icon.svg'];
+const A = [
+  './',
+  './index.html',
+  './style.css',
+  './sync.js',
+  './conquest.js',
+  './stats.js',
+  './app.js',
+  './manifest.webmanifest',
+  './icon.svg',
+];
 
 self.addEventListener('install', e => {
   self.skipWaiting();
