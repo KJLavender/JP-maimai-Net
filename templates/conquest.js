@@ -86,7 +86,7 @@ window.toggleVisited = function (idx, el) {
   if (state.visited.has(id)) state.visited.delete(id);
   else state.visited.add(id);
   LS.set('visited', [...state.visited]);
-  markChanged('v', id); // Google 同步用（有開同步就自動上傳）
+  markChanged('v', id); // 登入中會自動同步
   if (el) {
     const on = state.visited.has(id);
     el.dataset.on = on ? '1' : '0';
@@ -128,7 +128,7 @@ function renderConquest(el) {
   <p class="cq-hint">在清單或地圖的店家上按「🏁 標記去過」就會記下來；點縣名可以看那個縣的機廳。</p>
   <div class="cq-actions"><button class="btn small" id="cq-export">📷 匯出圖片</button></div>
   ${syncPanelHTML()}
-  <details class="cq-more"><summary>不用 Google 帳號？用備份代碼搬紀錄</summary>
+  <details class="cq-more"><summary>不想登入？用備份代碼搬紀錄</summary>
     <p class="cq-hint">紀錄平常只存在這個瀏覽器。換手機時先按「備份」複製代碼，到新手機按「還原」貼上。</p>
     <div class="cq-actions">
       <button class="btn ghost small" id="cq-backup">💾 備份</button>

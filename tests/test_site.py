@@ -3,7 +3,7 @@
 環境變數: BROWSER_CHANNEL（預設 chrome；設成空字串用 Playwright 內建 Chromium）
           SCREENSHOT_DIR（手機截圖輸出位置，預設 tests/out）"""
 import json, os, sys, re
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 from playwright.sync_api import sync_playwright
 
 URL = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8765/index.html"
@@ -298,82 +298,173 @@ with sync_playwright() as p:
     check("沒有 JS 錯誤", not errors, "; ".join(errors)[:200])
     ctx.close()
 
-    # ---------- ☁️ Google 同步（模擬 Google 登入與 Drive，兩個瀏覽器當兩台裝置） ----------
-    cloud = {}   # 假的 Drive：只有一個 appDataFolder 檔案
-    FAKE_GIS = ("window.google={accounts:{oauth2:{initTokenClient:o=>({requestAccessToken:()=>"
-                "setTimeout(()=>o.callback({access_token:'tok',expires_in:3600}),10)}),revoke:(t,cb)=>cb&&cb()}}};")
+    # ---------- 👤 帳號與同步（假的 Firebase，兩個瀏覽器當兩台裝置） ----------
+    cloud = {}   # 假的 Firestore：{"users/<uid>": 文件}
+    FAKE_FB = {
+        "firebase-app.js": "export const initializeApp = c => ({ c });",
+        "firebase-auth.js": r"""
+const K = 'fakeUser', subs = [];
+const A = { currentUser: JSON.parse(localStorage.getItem(K) || 'null') };
+const set = u => { A.currentUser = u; localStorage.setItem(K, JSON.stringify(u)); subs.forEach(f => f(u)); };
+const err = code => Object.assign(new Error(code), { code });
+export const getAuth = () => A;
+export const onAuthStateChanged = (_, f) => { subs.push(f); setTimeout(() => f(A.currentUser), 0); };
+export class GoogleAuthProvider {}
+export const signInWithPopup = async () => {
+  set({ uid: 'g1', displayName: '測試玩家', email: 'player@example.com', photoURL: null });
+  return { user: A.currentUser };
+};
+export const createUserWithEmailAndPassword = async (_, email, pw) => {
+  if (pw.length < 6) throw err('auth/weak-password');
+  set({ uid: 'e-' + email, displayName: null, email, photoURL: null });
+  return { user: A.currentUser };
+};
+export const signInWithEmailAndPassword = async (_, email, pw) => {
+  if (pw !== 'secret1') throw err('auth/invalid-credential');
+  set({ uid: 'e-' + email, displayName: null, email, photoURL: null });
+  return { user: A.currentUser };
+};
+export const updateProfile = async (u, p) => Object.assign(u, p);
+export const sendPasswordResetEmail = async () => {};
+export const signOut = async () => set(null);
+export const deleteUser = async () => set(null);
+""",
+        # 寫入時帶上目前登入者，假伺服器照 firestore.rules 檢查只能寫自己的文件
+        "firebase-firestore.js": r"""
+const U = 'https://fake-firestore.test/';
+const me = () => (JSON.parse(localStorage.getItem('fakeUser') || 'null') || {}).uid;
+export const getFirestore = () => ({});
+export const doc = (_, ...p) => ({ path: p.join('/') });
+const call = async (path, op, body) => {
+  const r = await fetch(`${U}${path}?op=${op}&uid=${encodeURIComponent(me())}`, body ? { method: 'POST', body } : {});
+  if (!r.ok) throw Object.assign(new Error('permission-denied'), { code: 'permission-denied' });
+  return r.json();
+};
+export const runTransaction = async (_, fn) => {
+  let w = null;
+  const out = await fn({
+    get: async ref => { const d = await call(ref.path, 'get'); return { exists: () => !!d, data: () => d }; },
+    set: (ref, d) => { w = [ref, d]; },
+  });
+  if (w) await call(w[0].path, 'set', JSON.stringify(w[1]));
+  return out;
+};
+export const deleteDoc = ref => call(ref.path, 'delete', '{}');
+""",
+    }
+    CORS = {"Access-Control-Allow-Origin": "*"}
 
-    def fake_drive(route):
-        req, u = route.request, urlparse(route.request.url)
-        if req.headers.get("authorization") != "Bearer tok":
-            return route.fulfill(status=401, body="")
-        if req.method == "GET" and u.path == "/drive/v3/files":
-            return route.fulfill(json={"files": [{"id": "f1"}] if "doc" in cloud else []})
-        if req.method == "GET" and u.path == "/drive/v3/files/f1":
-            return route.fulfill(json=cloud["doc"])
-        if req.method == "PATCH" and u.path == "/upload/drive/v3/files/f1":
-            cloud["doc"] = json.loads(req.post_data)
-            return route.fulfill(json={"id": "f1"})
-        if req.method == "POST" and u.path == "/upload/drive/v3/files":
-            body = req.post_data.split("\r\n\r\n")[2].split("\r\n--")[0]   # multipart 第二段是內容
-            meta = json.loads(req.post_data.split("\r\n\r\n")[1].split("\r\n--")[0])
-            cloud["doc"], cloud["meta"] = json.loads(body), meta
-            return route.fulfill(json={"id": "f1"})
-        route.fulfill(status=404, body="")
+    def fake_fb(route):
+        route.fulfill(body=FAKE_FB[route.request.url.rsplit("/", 1)[1]], content_type="text/javascript", headers=CORS)
+
+    def fake_fs(route):
+        u = urlparse(route.request.url)
+        path, q = u.path.lstrip("/"), dict(x.split("=", 1) for x in u.query.split("&"))
+        if path != "users/" + unquote(q["uid"]):
+            return route.fulfill(status=403, body="{}", headers=CORS)
+        if q["op"] == "set":
+            cloud[path] = json.loads(route.request.post_data)
+        elif q["op"] == "delete":
+            cloud.pop(path, None)
+        route.fulfill(body=json.dumps(cloud.get(path)), content_type="application/json", headers=CORS)
 
     def device():
         c = b.new_context(viewport={"width": 1100, "height": 900})
-        c.add_init_script("window.MJM_CLIENT_ID='test-client'")
-        c.route("https://accounts.google.com/gsi/client", lambda r: r.fulfill(body=FAKE_GIS, content_type="text/javascript"))
-        c.route("https://www.googleapis.com/**", fake_drive)
+        c.add_init_script("window.MJM_FIREBASE={apiKey:'test',authDomain:'test',projectId:'test',appId:'test'}")
+        c.route("https://www.gstatic.com/firebasejs/**", fake_fb)
+        c.route("https://fake-firestore.test/**", fake_fs)
         pg = c.new_page()
         pg.goto(URL + "#view=conquest", wait_until="networkidle")
         return pg
 
-    def cloud_on(i):
-        return [k for k, (on, _) in cloud.get("doc", {}).get("visited", {}).items() if on]
+    def cloud_on(uid="g1"):
+        return sorted(k for k, (on, _) in (cloud.get("users/" + uid) or {}).get("visited", {}).items() if on)
+
+    def synced(pg):
+        pg.wait_for_function("()=>localStorage.getItem('maimai:syncAt')&&!JSON.parse(localStorage.getItem('maimai:syncDirty'))")
+
+    def user_btn(pg):
+        return pg.locator("#userbtn").inner_text().strip()
 
     A = device()
     ids = A.evaluate("()=>[DATA[0].i, DATA[1].i]")
-    check("同步：有 Google 同步按鈕與隱私權說明", A.locator("#sync-now").is_visible()
-          and A.request.get(URL.rsplit("/", 1)[0] + "/privacy.html").ok)
-    A.evaluate("()=>toggleVisited(0)")
-    A.locator("#sync-now").click()
-    A.wait_for_function("()=>JSON.parse(localStorage.getItem('maimai:syncOn'))")
-    check("同步：裝置 A 第一次同步會在 appDataFolder 建檔",
-          cloud.get("meta", {}).get("parents") == ["appDataFolder"] and cloud_on(0) == [ids[0]], str(cloud_on(0)))
+    check("帳號：右上角有登入按鈕、有隱私權說明", user_btn(A).endswith("登入")
+          and A.request.get(URL.rsplit("/", 1)[0] + "/privacy.html").ok, user_btn(A))
+    check("帳號：沒登入過不會載入 Firebase", not A.evaluate(
+        "()=>performance.getEntriesByType('resource').some(r=>r.name.includes('firebasejs'))"))
+    A.evaluate("()=>toggleVisited(0)")   # 登入前就有的紀錄
+    A.locator("#userbtn").click()
+    check("帳號：登入視窗有 Google 登入與 Email 登入／註冊", A.locator("#login[open] #lg-google").is_visible()
+          and A.locator("#lg-email").is_visible() and A.locator(".dlg-tabs button").count() == 2)
+    A.locator("#lg-google").click()
+    synced(A)
+    check("帳號：Google 登入後右上角顯示名字", user_btn(A).endswith("測試玩家") and not A.locator("#login").is_visible(),
+          user_btn(A))
+    check("同步：登入前的紀錄會上傳到帳號", cloud_on() == [ids[0]], str(cloud_on()))
     B = device()
     B.evaluate("()=>toggleVisited(1)")
-    B.locator("#sync-now").click()
-    B.wait_for_function("()=>JSON.parse(localStorage.getItem('maimai:syncOn'))")
-    b_has = B.evaluate("()=>[...state.visited]")
-    check("同步：裝置 B 同步後兩台的紀錄合併", sorted(b_has) == sorted(ids) and sorted(cloud_on(0)) == sorted(ids),
-          f"B={len(b_has)} 雲端={len(cloud_on(0))}")
-    A.wait_for_timeout(50)
-    A.evaluate("()=>toggleVisited(0)")   # A 取消第一間；登入中會在 1.5 秒後自動上傳
+    B.locator("#sync-login").click()   # 制霸頁的登入按鈕
+    B.locator("#lg-google").click()
+    synced(B)
+    b_has = B.evaluate("()=>[...state.visited].sort()")
+    check("同步：裝置 B 登入後兩台的紀錄合併", b_has == sorted(ids) and cloud_on() == sorted(ids),
+          f"B={len(b_has)} 雲端={len(cloud_on())}")
+    A.evaluate("()=>toggleVisited(0)")   # A 取消第一間；登入中 1.5 秒後自動上傳
     A.wait_for_timeout(2500)
-    check("同步：登入中修改會自動上傳（A 取消的那間雲端也取消）", ids[0] not in cloud_on(0), str(cloud_on(0)))
-    id2 = A.evaluate("""()=>{const f=window.fetch;   // 上傳到一半時又標記一間
-      window.fetch=(u,o)=>{if(o&&o.method==='PATCH'&&!window._t){window._t=1;toggleVisited(2)}return f(u,o)};
-      syncNow(false);return DATA[2].i}""")
+    check("同步：登入中修改會自動上傳（A 取消的那間雲端也取消）", ids[0] not in cloud_on(), str(cloud_on()))
+    id2 = A.evaluate("""()=>{const f=window.fetch;   // 寫入雲端的途中又標記一間
+      window.fetch=(u,o)=>{if(o&&o.method==='POST'&&!window._t){window._t=1;toggleVisited(2)}return f(u,o)};
+      syncNow();return DATA[2].i}""")
     A.wait_for_timeout(2500)
-    check("同步：上傳途中的修改不會漏掉（會再傳一次）", id2 in cloud_on(0)
-          and not A.evaluate("()=>JSON.parse(localStorage.getItem('maimai:syncDirty'))"), str(cloud_on(0)))
+    check("同步：寫入途中的修改不會漏掉（會再傳一次）", id2 in cloud_on()
+          and A.evaluate("o=>state.visited.has(o)", id2)
+          and not A.evaluate("()=>JSON.parse(localStorage.getItem('maimai:syncDirty'))"), str(cloud_on()))
     A.evaluate("()=>toggleVisited(2)")
     A.wait_for_timeout(2500)
-    B.locator("#sync-now").click()
-    B.wait_for_timeout(800)
-    check("同步：B 再同步，較新的「取消」勝出", B.evaluate("()=>[...state.visited]") == [ids[1]])
     B.reload(wait_until="networkidle")
-    check("同步：開過同步的裝置一開頁就先載入 Google 登入", B.evaluate("()=>!!window.google"))
-    B.evaluate("()=>toggleFav(0)")
-    check("同步：還沒登入時修改會提示去按立即同步", "立即同步" in B.locator("#toast").inner_text()
-          and B.evaluate("()=>JSON.parse(localStorage.getItem('maimai:syncDirty'))"))
-    B.locator("#sync-stop").click()
-    check("同步：停止同步", not B.evaluate("()=>JSON.parse(localStorage.getItem('maimai:syncOn'))")
-          and B.locator("#sync-now").inner_text().startswith("☁️"))
+    check("帳號：重新整理後維持登入", user_btn(B).endswith("測試玩家"), user_btn(B))
+    B.wait_for_timeout(800)
+    check("同步：重開網頁自動拉到別台裝置的變更", B.evaluate("()=>[...state.visited]") == [ids[1]])
+    B.locator("#userbtn").click()
+    me = B.locator("#me[open]")
+    check("帳號：個人選單有名字、Email、去過數", me.is_visible() and "測試玩家" in me.inner_text()
+          and "player@example.com" in me.inner_text() and me.locator(".me-stats b").first.inner_text() == "1",
+          me.inner_text().replace("\n", " ")[:80])
+    B.locator("#me-out").click()
+    B.wait_for_timeout(300)
+    check("帳號：登出後回到「登入」、這台裝置的紀錄清空、雲端還在",
+          user_btn(B).endswith("登入") and B.evaluate("()=>state.visited.size") == 0 and cloud_on() == [ids[1]])
     A.context.close()
     B.context.close()
+
+    C = device()
+    C.locator("#userbtn").click()
+    C.locator(".dlg-tabs button", has_text="註冊").click()
+    check("註冊：註冊模式有暱稱欄、沒有「忘記密碼」", C.locator("#lg-name").is_visible()
+          and not C.locator("#lg-reset").is_visible())
+    C.fill("#lg-name", "小明")
+    C.fill("#lg-email", "ming@example.com")
+    C.fill("#lg-pw", "123")
+    C.locator("#lg-submit").click()
+    C.wait_for_timeout(300)
+    check("註冊：密碼太短會提示", "6 個字元" in C.locator("#lg-err").inner_text(), C.locator("#lg-err").inner_text())
+    C.fill("#lg-pw", "secret1")
+    C.locator("#lg-submit").click()
+    synced(C)
+    check("註冊：Email 註冊後右上角顯示暱稱", user_btn(C).endswith("小明") and "users/e-ming@example.com" in cloud,
+          user_btn(C))
+    C.locator("#userbtn").click()
+    C.once("dialog", lambda d: d.accept())
+    C.locator("#me-del").click()
+    C.wait_for_timeout(300)
+    check("帳號：刪除帳號會刪掉雲端紀錄", "users/e-ming@example.com" not in cloud and user_btn(C).endswith("登入"))
+    C.locator("#userbtn").click()
+    C.fill("#lg-email", "ming@example.com")
+    C.fill("#lg-pw", "wrong")
+    C.locator("#lg-submit").click()
+    C.wait_for_timeout(300)
+    check("登入：密碼錯誤會提示", "密碼不對" in C.locator("#lg-err").inner_text(), C.locator("#lg-err").inner_text())
+    C.context.close()
 
     # ---------- 營業狀態（固定時鐘） ----------
     ctx = b.new_context(timezone_id="America/New_York")
