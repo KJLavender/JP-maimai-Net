@@ -9,7 +9,7 @@ import paths
 import csv, os, re, json, datetime, hashlib
 from collections import Counter
 from urllib.parse import quote
-from tw_brands import brand_zh
+from tw_brands import brand_zh, MANUAL
 
 HEADER_KEYS = ["名稱","地址","都道府縣","營業時間","遊戲","郵遞區號","地圖連結","詳細連結","緯度","經度","中文名","google_place_id","營業時間來源","週營業時間","機台","mgm_id"]
 RHYTHM_ORDER = [
@@ -60,6 +60,9 @@ def read_rows():
                     i = idx[k]; return row[i].strip() if 0 <= i < len(row) else ""
                 name, addr = g("名稱"), g("地址")
                 if not name:
+                    continue
+                if MANUAL.get(name, {}).get("closed"):
+                    print("略過已歇業：", name)
                     continue
                 key = (name, addr)
                 if key in seen:

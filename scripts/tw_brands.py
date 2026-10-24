@@ -28,9 +28,13 @@ MANUAL = {
     "TOM'S WORLD (HAIDIAN-LI@TAINAN))": {"zh": "湯姆熊台南海佃店", "pid": "ChIJP3zB17J3bjQRYJpIz1_qGuM"},
     "HAPPY100 (E DA)": {"mgm": "52", "pid": "ChIJM9GG6RsRbjQRBZZ1YhEqsu0"},
     "TOM'S WORLD (SHOWTIME@KONG-SAN)": {"mgm": "237", "pid": "ChIJrf-jirwPbjQRp2rNpZ6JaFU"},
-    # 只確定中文名：Google 上找不到同地址的店（可能已搬家或用別的名字）
-    "RED HAT ELEPHANT (TAOYUAN)": {"zh": "紅帽象桃園統領店"},
-    "GUOBIN AMUSEMENT PARK": {"zh": "太鼓歡樂園"},
+    # Google 上叫「金統領電子遊戲場」（中正路 61 號 9 樓），就是紅帽象桃園統領店
+    "RED HAT ELEPHANT (TAOYUAN)": {"zh": "紅帽象桃園統領店", "pid": "ChIJPdEvFm4faDQRCOXmgxjayQ0"},
+    # SEGA 地址是中華東路一段 66 號，Google 上在二段 62、64 號，是同一間
+    "GUOBIN AMUSEMENT PARK": {"zh": "太鼓歡樂園", "pid": "ChIJb_m3mtl3bjQR6awuhKMpUa8"},
+    # 玩家回報已歇業（SEGA 還沒下架）：網站不顯示
+    "X50 MGS TAIPEI": {"closed": True},
+    "VAN'S PARADISE(TAMSUI)": {"closed": True},
 }
 
 # (英文店名 regex, 中文店名 regex, 顯示用中文品牌；空字串＝不確定中文名，不顯示)
