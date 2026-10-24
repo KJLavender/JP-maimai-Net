@@ -7,10 +7,10 @@
 
 // Firebase 網頁設定是公開資訊（不是密鑰），誰能讀寫什麼由 firestore.rules 控管。apiKey 空白時不顯示登入
 const FIREBASE_CONFIG = window.MJM_FIREBASE || {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  appId: '',
+  apiKey: 'AIzaSyAiokQw8MgGowY4awqauglDpXcHgiVirbo',
+  authDomain: 'maimai-map-2b8d4.firebaseapp.com',
+  projectId: 'maimai-map-2b8d4',
+  appId: '1:144324202826:web:fa98ad1292ed58ce9df1b3',
 };
 const FB_SDK = 'https://www.gstatic.com/firebasejs/13.1.0/';
 const acct = { fb: null, loading: null, user: null, busy: false, timer: null, rev: 0 };
@@ -362,10 +362,9 @@ function openMenu() {
       <div><b>${s.prefs}<small>/${s.prefTotal}</small></b><span>制霸縣</span></div>
       <div><b>${state.favs.size}</b><span>收藏</span></div>
     </div>
-    <div class="me-sync">☁️ ${syncStatusText()}</div>
+    <div class="me-sync">☁️ 自動同步 · ${syncStatusText()}${retryHTML('me-sync')}</div>
     <div class="me-acts">
       <button class="btn small" id="me-conq">🏆 我的制霸</button>
-      <button class="btn ghost small" id="me-sync">🔄 立即同步</button>
       <button class="btn ghost small" id="me-out">登出</button>
     </div>
     <button class="linkbtn danger" id="me-del">刪除帳號</button>`,
@@ -377,20 +376,25 @@ function openMenu() {
     render();
     scrollTo(0, 0);
   };
-  d.querySelector('#me-sync').onclick = () => (d.close(), syncNow(true));
+  const retry = d.querySelector('#me-sync');
+  if (retry) retry.onclick = () => (d.close(), syncNow(true));
   d.querySelector('#me-out').onclick = logout;
   d.querySelector('#me-del').onclick = deleteAccount;
   d.showModal();
 }
 
 /* ---- 制霸頁上的同步區塊 ---- */
+// 平常都自動同步，只有失敗（例如離線）留下沒傳的變更時才給重試按鈕
+const retryHTML = id =>
+  LS.get('syncDirty', false) && !acct.busy
+    ? ` <button class="linkbtn inline" id="${id}">重試同步</button>`
+    : '';
 function syncPanelHTML() {
   if (!acctEnabled()) return '';
   const u = LS.get('user', null);
   return `<div class="sync" id="sync">${
     u
-      ? `<div class="sync-st">☁️ 紀錄同步到「${esc(u.name)}」的帳號 · ${syncStatusText()}</div>
-         <div class="cq-actions"><button class="btn small" id="sync-now">🔄 立即同步</button></div>`
+      ? `<div class="sync-st">☁️ 紀錄自動同步到「${esc(u.name)}」的帳號 · ${syncStatusText()}${retryHTML('sync-now')}</div>`
       : `<button class="btn small" id="sync-login">👤 登入／註冊</button>
          <p class="cq-hint">登入後，去過和收藏會在手機、電腦自動同步。不登入也能照常使用。</p>`
   }</div>`;
@@ -405,8 +409,8 @@ function refreshSyncUI(msg) {
   const box = document.getElementById('sync');
   if (!box) return;
   if (msg) {
-    const n = box.querySelector('#sync-now');
-    if (n) n.textContent = msg;
+    const st = box.querySelector('.sync-st');
+    if (st) st.textContent = '☁️ ' + msg;
   } else {
     box.outerHTML = syncPanelHTML();
     bindSyncPanel(document.getElementById('conquest'));

@@ -1099,6 +1099,11 @@ noscript {
 .linkbtn[hidden] {
   display: none;
 }
+.linkbtn.inline {
+  display: inline;
+  margin: 0 0 0 4px;
+  color: var(--cyan);
+}
 .me-head {
   display: flex;
   align-items: center;
