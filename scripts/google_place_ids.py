@@ -13,11 +13,13 @@
 執行:
   python scripts/google_place_ids.py --test 5     # 只跑 5 間（含新竹巨城店）印出結果，不寫檔
   python scripts/google_place_ids.py              # 只補還沒有 place ID 的店
+  python scripts/google_place_ids.py --pref 台灣  # 只補台灣
   python scripts/google_place_ids.py --redo       # 全部重找
 """
 import paths
 import argparse, csv, json, math, os, re, sys, time, unicodedata, datetime
 import requests
+from tw_brands import brand, MANUAL
 
 URL = "https://places.googleapis.com/v1/places:searchText"
 FIELDS = "places.id,places.displayName,places.location"
@@ -25,8 +27,7 @@ MONTHLY_CAP = 2000          # Text Search Pro 每月免費 5,000；保守設在�
 MAX_DIST_M = 300            # Google 座標與 SEGA 座標超過這距離就不採用
 USAGE = paths.GOOGLE_USAGE
 # 人工確認過 Google 配錯的店（配到商場、KTV、餐廳…）：不給 place ID，網頁退回用店名搜尋
-SKIP = {"キッズランド", "星狩物語岸和田店", "HURO WORLD(CITY LINK@NANGANG)", "TOM'S WORLD(GLOBALMALL-NANGANG)",
-        "INTER PARK+1宇都宮", "ウェアハウス一橋学園店"}
+SKIP = {"キッズランド", "星狩物語岸和田店", "INTER PARK+1宇都宮", "ウェアハウス一橋学園店"}
 
 
 def load_key():
@@ -90,15 +91,21 @@ def search(session, key, query, lat, lng, lang):
     return r.json().get("places", [])
 
 
-def pick(cands, names, lat, lng, max_d=MAX_DIST_M):
-    """在 max_d 公尺內挑店名最像的；同分取近的。回傳 (place, 距離, 相似度) 或 None。"""
+def pick(cands, names, lat, lng, max_d=MAX_DIST_M, tw=False, brand_d=None):
+    """在 max_d 公尺內挑店名最像的；同分取近的。回傳 (place, 距離, 相似度) 或 None。
+    tw=True：台灣英文店名和 Google 中文店名同品牌（TOM'S WORLD ↔ 湯姆熊）時相似度至少算 0.6，
+    brand_d 給了就把同品牌的距離上限放寬到這個值（SEGA 台灣座標常偏幾百公尺到幾公里）。"""
     best = None
     for p in cands:
         loc = p.get("location", {})
         d = haversine_m((lat, lng), (loc.get("latitude", 0), loc.get("longitude", 0)))
-        if d > max_d:
+        dn = p.get("displayName", {}).get("text", "")
+        same = tw and any(n and brand(n) is not None and brand(n) == brand(dn, zh=True) for n in names)
+        if d > (brand_d if same and brand_d else max_d):
             continue
-        sim = max(similarity(n, p.get("displayName", {}).get("text", "")) for n in names if n)
+        sim = max(similarity(n, dn) for n in names if n)
+        if same:
+            sim = max(sim, 0.6)
         if sim == 0:   # 完全不像：多半是 Google 回了地址（「４丁目」「南崁路1號」）或隔壁別家店
             continue
         score = (round(sim, 2), -d)
@@ -111,6 +118,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--test", type=int, default=0)
     ap.add_argument("--redo", action="store_true")
+    ap.add_argument("--pref", default="", help="只處理這個都道府縣（例：台灣）")
     args = ap.parse_args()
     key = load_key()
     if not key:
@@ -126,7 +134,11 @@ def main():
     for r in body:
         if r[col["名稱"]] in SKIP:
             r[col["google_place_id"]] = ""
+        if MANUAL.get(r[col["名稱"]], {}).get("pid"):   # 人工對過的直接用，不再搜尋
+            r[col["google_place_id"]] = MANUAL[r[col["名稱"]]]["pid"]
     todo = [r for r in body if r[col["緯度"]] and r[col["名稱"]] not in SKIP
+            and not MANUAL.get(r[col["名稱"]], {}).get("pid")
+            and (not args.pref or r[col["都道府縣"]] == args.pref)
             and (args.redo or not r[col["google_place_id"]])]
     if args.test:
         first = [r for r in todo if "GIANT CITY" in r[col["名稱"]]]
@@ -144,13 +156,14 @@ def main():
             lat, lng = float(r[col["緯度"]]), float(r[col["經度"]])
             query = zh or re.sub(r"[()@]+", " ", name).strip()
             lang = "zh-TW" if r[col["都道府縣"]] == "台灣" else "ja"   # 店名用當地語言回傳才比對得到
+            tw = lang == "zh-TW"
             cands = search(s, key, query, lat, lng, lang); usage.add()
-            got = pick(cands, [name, zh], lat, lng)
+            got = pick(cands, [name, zh], lat, lng, tw=tw)
             if not got and usage.used < MONTHLY_CAP:
-                # 備案：店名＋地址再找一次、放寬到 500m（台灣英文店名常常單獨搜不到）
+                # 備案：店名＋地址再找一次、放寬到 500m（台灣英文店名常常單獨搜不到；同品牌放寬到 2km）
                 query = f"{query} {r[col['地址']]}"
                 cands = search(s, key, query, lat, lng, lang); usage.add()
-                got = pick(cands, [name, zh], lat, lng, 500)
+                got = pick(cands, [name, zh], lat, lng, 500, tw=tw, brand_d=2000)
             if got:
                 p, d, sim = got
                 r[col["google_place_id"]] = p["id"]; hit += 1

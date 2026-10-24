@@ -232,6 +232,14 @@ with sync_playwright() as p:
         keys = set(dj["shops"][0])
         check("data.json：欄位齊全", {"name", "hours", "games", "lat", "lng", "google_maps_url"} <= keys)
 
+    tw = page.evaluate("""()=>{const t=DATA.filter(d=>d.p==='台灣'), g=t.filter(d=>!d.gp);
+      const q=d=>decodeURIComponent(d.u).split('query=')[1]||'';
+      return {n:t.length, zh:t.filter(d=>d.z||d.zg).length, pid:t.length-g.length,
+        bad:g.filter(d=>d.z?!q(d).startsWith(d.z):!q(d).includes(d.a)).map(d=>d.n)}}""")
+    check("台灣：店名幾乎都有中文（正式中文名，或「品牌（縣市）」）", tw["zh"] >= tw["n"] - 3, f"{tw['zh']}/{tw['n']}")
+    check("台灣：大部分店家有 Google place ID（店家資訊直接開到那間店）", tw["pid"] >= tw["n"] - 6, f"{tw['pid']}/{tw['n']}")
+    check("台灣：沒有 place ID 的店用中文名或「品牌＋地址」搜 Google，不用英文店名", not tw["bad"], str(tw["bad"]))
+
     # 🏆 制霸
     def view(name):
         page.locator(".viewtoggle button", has_text=name).click()
@@ -253,6 +261,25 @@ with sync_playwright() as p:
     page.reload(wait_until="networkidle")
     check("制霸：重新整理後紀錄還在（localStorage）", stat(0) == "1")
     check("制霸：網址記住目前檢視", "view=conquest" in page.url)
+
+    page.locator(".cq-region button", has_text="台灣").click()
+    n_tw = page.locator(".cq-map.tw .ctile").count()
+    no_c = page.evaluate("()=>DATA.filter(d=>d.p==='台灣'&&!d.c).map(d=>d.n)")
+    check("制霸：可以切換到台灣縣市地圖、每間台灣店都有縣市", n_tw == 22 and not no_c, f"{n_tw} 格；沒縣市：{no_c}")
+    tc = page.evaluate("""()=>{const d=DATA.find(x=>x.c==='台中市');toggleVisited(d._idx);render();
+      return DATA.filter(x=>x.c==='台中市').length}""")
+    tct = page.locator('.ctile[data-p="台中市"]')
+    check("制霸：台灣去過的店會在縣市地圖上色", "on" in (tct.get_attribute("class") or "") and stat(2) == "1",
+          tct.inner_text().replace("\n", " "))
+    tct.click()
+    page.wait_for_timeout(300)
+    n, _ = count(page)
+    check("制霸：點台灣縣市會列出那個縣市的機廳", n == tc and page.locator("#q").input_value() == "台中市", f"{n}/{tc}")
+    page.evaluate("()=>toggleVisited(DATA.find(x=>x.c==='台中市')._idx)")
+    page.fill("#q", "")
+    page.locator("#statusrow select").select_option("")
+    view("制霸")
+    page.locator(".cq-region button", has_text="日本").click()
 
     code = page.evaluate("()=>backupCode()")
     page.evaluate("()=>{localStorage.removeItem('maimai:visited')}")

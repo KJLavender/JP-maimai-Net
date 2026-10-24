@@ -15,7 +15,9 @@ const foldCJK = s => {
 };
 DATA.forEach((d, i) => {
   d._idx = i;
-  d._s = foldCJK((d.n + ' ' + d.a + ' ' + d.p + ' ' + (d.z || '')).toLowerCase());
+  d._s = foldCJK(
+    (d.n + ' ' + d.a + ' ' + d.p + ' ' + (d.z || d.zg || '') + ' ' + (d.c || '')).toLowerCase(),
+  );
 });
 const byId = {};
 DATA.forEach(d => (byId[d.i] = d));
@@ -471,7 +473,7 @@ window.shareView = async () => {
   const url = location.href;
   if (navigator.share) {
     try {
-      await navigator.share({ title: '音遊機廳', url });
+      await navigator.share({ title: '音GO｜音遊機廳巡禮', url });
       return;
     } catch (_) {}
   }
@@ -603,7 +605,7 @@ function card(d) {
     ? `<a class="btn ghost" href="${esc(d.d)}" target="_blank" rel="noopener">官方詳細</a>`
     : '';
   return `<div class="card"><div class="crow"><div class="cname">
-   <button class="star" onclick="toggleFav(${d._idx},this)">${star}</button> ${esc(d.z || d.n)}${d.z ? `<div class="ename">${esc(d.n)}</div>` : ''}</div>${badgeHTML(d)}</div>
+   <button class="star" onclick="toggleFav(${d._idx},this)">${star}</button> ${esc(d.z || d.zg || d.n)}${d.z || d.zg ? `<div class="ename">${esc(d.n)}</div>` : ''}</div>${badgeHTML(d)}</div>
   ${hours}${d.g.length ? `<div class="gtags">${gtagsHTML(d.g)}</div>` : ''}
   ${machHTML(d)}
   <div class="addr">${esc(d.a)}</div>
@@ -617,7 +619,7 @@ function popupHTML(d) {
     'y' in d
       ? `https://www.google.com/maps/dir/?api=1&destination=${d.y},${d.x}${d.gp ? '&destination_place_id=' + d.gp : ''}`
       : d.u;
-  return `<div class="pop"><div class="pn"><button class="star" onclick="toggleFav(${d._idx},this)">${star}</button> ${esc(d.z || d.n)}</div>
+  return `<div class="pop"><div class="pn"><button class="star" onclick="toggleFav(${d._idx},this)">${star}</button> ${esc(d.z || d.zg || d.n)}</div>
   ${b ? `<span class="badge ${b.c}">${b.t}</span>` : ''} <span class="ph">${esc(dayHours(d, localNow(tzOff(d)).wd) || (d.w ? '今日公休' : '官方未登記營業時間'))}</span>
   <div class="gtags">${gtagsHTML(d.g)}</div>
   <div class="cacts">${routeBtnHTML(d)}${visitedBtnHTML(d)}</div>

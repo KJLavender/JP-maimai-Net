@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# 「全日本音遊機廳」網站產生器：data/arcades.csv ＋ templates/（前端原始檔）→ site/。
+# 「音GO｜音遊機廳巡禮」網站產生器：data/arcades.csv ＋ templates/（前端原始檔）→ site/。
 # site/ 是產生出來的結果，不進 repo；Netlify 部署時會執行本腳本（見 netlify.toml）。
 # 功能：營業判斷（依星期幾）＋倒數、音遊按鈕(自動生成)、其他遊戲下拉、定位/距離/半徑、
 #       深夜快篩、★收藏、精準導航、機廳巡り路線(多點導航)、台灣機台資訊、分享連結、
@@ -9,6 +9,7 @@ import paths
 import csv, os, re, json, datetime, hashlib
 from collections import Counter
 from urllib.parse import quote
+from tw_brands import brand_zh, MANUAL
 
 HEADER_KEYS = ["名稱","地址","都道府縣","營業時間","遊戲","郵遞區號","地圖連結","詳細連結","緯度","經度","中文名","google_place_id","營業時間來源","週營業時間","機台","mgm_id"]
 RHYTHM_ORDER = [
@@ -21,6 +22,22 @@ GAME_ALIAS = {
     "maimai DX International Version": "maimai でらっくす",
     "CHUNITHM International Version": "CHUNITHM",
 }
+# 台灣店的英文地址 → 縣市（制霸地圖、搜尋用）。依順序比對：New Taipei 要在 Taipei 前面
+TW_COUNTY = [
+    ("NEWTAIPEI", "新北市"), ("TAIPEI", "台北市"), ("KEELUNG", "基隆市"),
+    ("TAOYUAN", "桃園市"),
+    ("HSINCHUCOUNTY", "新竹縣"), ("HSINCHU", "新竹市"), ("MIAOLI", "苗栗縣"),
+    ("TAICHUNG", "台中市"), ("CHANGHUA", "彰化縣"), ("NANTOU", "南投縣"), ("YUNLIN", "雲林縣"),
+    ("CHIAYICOUNTY", "嘉義縣"), ("CHIAYI", "嘉義市"), ("TAINAN", "台南市"), ("KAOHSIUNG", "高雄市"),
+    ("PINGTUNG", "屏東縣"), ("YILAN", "宜蘭縣"), ("HUALIEN", "花蓮縣"), ("TAITUNG", "台東縣"),
+    ("PENGHU", "澎湖縣"), ("KINMEN", "金門縣"), ("LIENCHIANG", "連江縣"),
+    ("NANGANGDIST", "台北市"), ("SANMINDIST", "高雄市"),   # 地址沒寫縣市、只有區名的
+]
+
+
+def tw_county(addr):
+    a = re.sub(r"[^A-Z]", "", addr.upper())
+    return next((c for k, c in TW_COUNTY if k in a), "")
 
 def read_rows():
     if not os.path.exists(paths.ARCADES):
@@ -44,6 +61,9 @@ def read_rows():
                 name, addr = g("名稱"), g("地址")
                 if not name:
                     continue
+                if MANUAL.get(name, {}).get("closed"):
+                    print("略過已歇業：", name)
+                    continue
                 key = (name, addr)
                 if key in seen:
                     continue
@@ -51,10 +71,11 @@ def read_rows():
                 games = [GAME_ALIAS.get(x.strip(), x.strip()) for x in re.split(r"[、,]", g("遊戲")) if x.strip()]
                 games = list(dict.fromkeys(games))
                 zh = g("中文名")
-                # 台灣店的英文名＋英文地址丟給 Google 常跑出一串結果；有中文名就只搜中文名，
-                # 沒有就把「TOM'S WORLD(GIANT CITY@HSINCHU)」拆成一般字詞
+                county = tw_county(addr) if g("都道府縣") == "台灣" else ""
+                bz = brand_zh(name) if county else ""
+                # 台灣店的英文名丟給 Google 常配到別縣市的分店；有中文名就搜中文名，沒有就搜「中文品牌＋地址」
                 if g("都道府縣") == "台灣":
-                    q = zh or re.sub(r"[()@]+", " ", name).strip()
+                    q = zh or f"{bz or name} {addr}"
                 else:
                     q = f"{name} {addr}"
                 url = g("地圖連結") or ("https://www.google.com/maps/search/?api=1&query=" + quote(q))
@@ -68,6 +89,12 @@ def read_rows():
                        "i": m.group(1) if m else name + "|" + addr}
                 if zh and zh != name:
                     rec["z"] = zh
+                elif bz:   # 沒有正式中文名：顯示「品牌（縣市）」幫助辨認，不猜分店名
+                    rec["zg"] = f"{bz}（{county}）"
+                if rec["p"] == "台灣":
+                    rec["c"] = county
+                    if not rec["c"]:
+                        print("⚠ 地址看不出台灣縣市（請補到 TW_COUNTY）：", name, addr)
                 if gp:
                     rec["gp"] = gp
                 if g("營業時間來源") in ("Google", "MGM"):
