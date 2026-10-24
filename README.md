@@ -1,4 +1,4 @@
-# 🎵 OtoGO — Rhythm Game Arcade Finder (音GO｜音遊機廳巡禮)
+# 🎵 OtoGO — Rhythm Game Arcade Finder (音GO · 找機廳)
 
 **English** | [繁體中文](README.zh-TW.md)
 

@@ -1,4 +1,4 @@
-# 🎵 音GO｜音遊機廳巡禮（OtoGO）
+# 🎵 音GO · 找機廳（OtoGO）
 
 [English](README.md) | **繁體中文**
 
