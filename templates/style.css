@@ -245,7 +245,7 @@ select {
   color: var(--muted);
   border: none;
   font-size: 0.77rem;
-  padding: 5px 13px;
+  padding: 5px 10px;
   cursor: pointer;
 }
 .viewtoggle button[data-on='1'] {
@@ -651,4 +651,261 @@ noscript {
   display: block;
   padding: 20px;
   color: var(--muted);
+}
+
+/* ---------- 🏆 制霸 ---------- */
+.cacts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 9px;
+}
+.cacts .rtbtn {
+  margin-top: 0;
+}
+.pop .vbtn {
+  font-size: 0.72rem;
+  padding: 4px 9px;
+}
+.vbtn[data-on='1'] {
+  background: #86b6ef;
+  color: #0d1b33;
+  border-color: transparent;
+  font-weight: 700;
+}
+#conquest,
+#stats {
+  display: none;
+  margin-top: 12px;
+}
+.cq-tiles {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 6px 0 14px;
+}
+.stat {
+  flex: 1 1 120px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.stat .sv {
+  font-size: 1.9rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.stat .sv small {
+  font-size: 0.9rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.stat .sl {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.stat .dl {
+  color: var(--text);
+}
+.cq-map {
+  display: grid;
+  gap: 4px;
+  aspect-ratio: 13 / 12;
+  max-width: 640px;
+  margin: 0 auto;
+}
+.ctile {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 7px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1.15;
+}
+.ctile b {
+  font-size: 0.72rem;
+}
+.ctile span {
+  font-size: 0.56rem;
+  opacity: 0.85;
+}
+.ctile.on {
+  border-color: transparent;
+}
+.ctile:hover,
+.ctile:focus-visible {
+  outline: 2px solid var(--cyan);
+}
+.cq-legend {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin: 12px 0 4px;
+}
+.sw {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-right: 5px;
+  vertical-align: -2px;
+}
+.sw.none {
+  border: 1px solid var(--line);
+}
+.cq-hint {
+  font-size: 0.74rem;
+  color: var(--muted);
+  text-align: center;
+  margin: 8px 0;
+}
+.cq-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+@media (max-width: 430px) {
+  .ctile b {
+    font-size: 0.56rem;
+  }
+  .ctile span {
+    display: none;
+  }
+}
+
+/* ---------- 📊 統計 ---------- */
+.chart {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin: 12px 0;
+}
+.chead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.chead h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.ckeys {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin: 8px 0;
+}
+.ckeys i {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  margin-right: 5px;
+  vertical-align: 3px;
+}
+.cwrap {
+  position: relative;
+}
+.chart svg {
+  display: block;
+  overflow: visible;
+}
+.chart .grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.chart .tick {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.chart .blabel {
+  fill: var(--text);
+  font-size: 11px;
+}
+.chart .ring {
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+.chart .xhair {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+.chart .bar:hover path {
+  opacity: 0.85;
+}
+.ctip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 0.74rem;
+  color: var(--text);
+  min-width: 150px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+.ctip div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ctip i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.ctip span {
+  margin-left: auto;
+  font-weight: 700;
+}
+.stable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.76rem;
+  margin-top: 6px;
+}
+.stable th,
+.stable td {
+  border-bottom: 1px solid var(--line);
+  padding: 4px 6px;
+  text-align: right;
+}
+.stable th {
+  color: var(--muted);
+  font-weight: 600;
+}
+.stable td:first-child,
+.stable th:first-child {
+  text-align: left;
+}
+#st-games {
+  margin: 8px 0;
+}
+.chip.stg[data-on='1'] {
+  background: var(--cyan);
+  color: #04222a;
+}
+#st-more {
+  margin-top: 8px;
 }

@@ -232,6 +232,68 @@ with sync_playwright() as p:
         keys = set(dj["shops"][0])
         check("data.json：欄位齊全", {"name", "hours", "games", "lat", "lng", "google_maps_url"} <= keys)
 
+    # 🏆 制霸
+    def view(name):
+        page.locator(".viewtoggle button", has_text=name).click()
+        page.wait_for_timeout(200)
+
+    def stat(i):
+        return page.locator("#conquest .stat .sv").nth(i).inner_text().split("/")[0].strip()
+
+    page.locator("#statusrow select").select_option("大阪府")
+    vb = page.locator(".card .vbtn").first
+    vb.click()
+    check("制霸：店家卡片可以標記去過", "去過" in vb.inner_text() and vb.get_attribute("data-on") == "1")
+    view("制霸")
+    check("制霸：去過 1 間、制霸 1 縣", stat(0) == "1" and stat(1) == "1", f"{stat(0)} / {stat(1)}")
+    tile = page.locator('.ctile[data-p="大阪府"]')
+    check("制霸：方格地圖有 47 都道府縣，大阪有上色", page.locator(".ctile").count() == 47
+          and "on" in (tile.get_attribute("class") or "") and tile.inner_text().split("\n")[-1].startswith("1/"),
+          tile.inner_text().replace("\n", " "))
+    page.reload(wait_until="networkidle")
+    check("制霸：重新整理後紀錄還在（localStorage）", stat(0) == "1")
+    check("制霸：網址記住目前檢視", "view=conquest" in page.url)
+
+    code = page.evaluate("()=>backupCode()")
+    page.evaluate("()=>{localStorage.removeItem('maimai:visited')}")
+    page.reload(wait_until="networkidle")
+    check("備份：清掉之後是 0", stat(0) == "0")
+    page.once("dialog", lambda d: d.accept(code))
+    page.locator("#cq-restore").click()
+    page.wait_for_timeout(300)
+    check("備份：貼上備份代碼可以還原", stat(0) == "1", code[:20] + "…")
+
+    page.evaluate("()=>{navigator.canShare=undefined}")   # 桌機不跳系統分享，直接下載
+    with page.expect_download() as dl:
+        page.locator("#cq-export").click()
+    png = os.path.join(SHOTS, "conquest.png")
+    dl.value.save_as(png)
+    check("制霸：匯出圖片（PNG）", os.path.getsize(png) > 20000 and open(png, "rb").read(4) == b"\x89PNG",
+          f"{os.path.getsize(png) // 1024} KB")
+    tile.click()
+    page.wait_for_timeout(300)
+    check("制霸：點縣名會跳到那個縣的清單", page.locator("#statusrow select").input_value() == "大阪府"
+          and page.locator("#list").is_visible())
+
+    # 📊 統計
+    view("統計")
+    hist = page.evaluate("()=>CONFIG.history.filter(h=>h.jp).length")
+    lines = page.locator("#st-line path").count()
+    check("統計：折線圖有 5 款遊戲", lines == 5 and hist >= 2, f"{lines} 條線、{hist} 筆歷史")
+    page.locator("#st-hit").hover(position={"x": 20, "y": 40})
+    check("統計：滑過折線圖有數值提示", page.locator("#st-line .ctip").is_visible())
+    check("統計：長條圖預設前 15 名", page.locator("#st-bar .bar").count() == 15)
+    page.locator("#st-more").click()
+    n_all = page.locator("#st-bar .bar").count()
+    check("統計：顯示全部地區", n_all >= 47, str(n_all))
+    page.locator("#st-games .chip", has_text="cherrit").click()
+    n_ch = page.locator("#st-bar .bar").count()
+    check("統計：切換成 cherrit 只算有 cherrit 的地區", 0 < n_ch < n_all, f"{n_ch} < {n_all}")
+    page.locator("#st-table").click()
+    check("統計：表格檢視", page.locator("#st-line table tr").count() == hist + 1)
+    page.locator("#st-table").click()
+    page.evaluate("()=>{localStorage.removeItem('maimai:visited');location.hash=''}")
+
     check("沒有 JS 錯誤", not errors, "; ".join(errors)[:200])
     ctx.close()
 

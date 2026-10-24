@@ -96,7 +96,7 @@ print("音遊按鈕：", "、".join(f"{g}({cnt[g]})" for g in rhythm) or "（無
 print("其他遊戲（下拉）：", len(others), "款")
 
 # ---------------- 輸出 site/ ----------------
-STATIC = ["style.css", "app.js", "manifest.webmanifest", "icon.svg"]   # 原樣複製的前端檔案
+STATIC = ["style.css", "conquest.js", "stats.js", "app.js", "manifest.webmanifest", "icon.svg"]   # 原樣複製的前端檔案
 
 
 def read_template(name):
@@ -113,7 +113,11 @@ def inline_json(obj):
     return json.dumps(obj, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
 
-config = {"rhythm": rhythm, "others": [[g, cnt[g]] for g in others]}
+# 統計頁的歷史（只留圖表用得到的：日期、各遊戲店數、總數）
+HISTORY = os.path.join(paths.DATA, "history.json")
+history = [{"date": h["date"], **{k: {"total": h[k]["total"], "games": h[k]["games"]} for k in ("jp", "tw") if k in h}}
+           for h in (json.load(open(HISTORY, encoding="utf-8")) if os.path.exists(HISTORY) else [])]
+config = {"rhythm": rhythm, "others": [[g, cnt[g]] for g in others], "history": history}
 html_out = (read_template("index.html")
             .replace("__TOTAL__", str(total))
             .replace("__DATE__", data_date)

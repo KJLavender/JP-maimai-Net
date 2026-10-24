@@ -22,6 +22,8 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 - 🧭 **Arcade crawl route**: pick up to 9 stops and open them as one multi-stop Google Maps route
 - 🎰 **Taiwan machine details**: machine count, version/cabinet, coin type, queueing style and player notes (from Music Game Map)
 - 🔗 **Shareable links**: filters are stored in the URL, so a friend opening the link sees the same results (only "search this place" locations are shared, never your GPS position)
+- 🏆 **Arcade conquest**: tap "🏁 Mark visited" on any arcade; a tile map of the 47 prefectures fills in by how much you've covered and can be exported as an image to share. Records live only in your own browser (no account, nothing uploaded); move them to a new phone with the backup / restore code
+- 📊 **Stats**: how many arcades carry each rhythm game over time (one more point every weekly update) and a ranking by prefecture, switchable by game, with a table view
 - 🗺️ **List / map views**: clustered markers, green = open now
 - 📱 **PWA**: add to home screen; the list works offline
 
@@ -31,9 +33,11 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 ├── data/                 Data
 │   ├── arcades.csv       All arcades (main dataset)
 │   ├── mgm_cache.csv     Music Game Map cache (Taiwan Chinese names, machine details)
+│   ├── history.json      Arcade-count snapshot per update (for the stats page)
 │   └── data_date.txt     Data date
 ├── scripts/              Scrapers and data processing
 │   ├── update_data.py    ⭐ One-command update (calls most of the other scripts)
+│   ├── history.py        Records history snapshots; `--backfill` rebuilds them from git history
 │   ├── build_site.py     data/ + templates/ → generates site/
 │   ├── scrape_jp.py      Scrapes Japanese arcades (SEGA ALL.Net gm=96)
 │   ├── scrape_tw.py      Scrapes Taiwan arcades (gm=98)
@@ -47,6 +51,7 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 ├── templates/            Front-end sources (edit these to change the page)
 │   ├── index.html        Page skeleton (__DATA__ etc. are filled in by build_site.py)
 │   ├── style.css / app.js
+│   ├── conquest.js / stats.js   🏆 Conquest, 📊 Stats
 │   └── sw.js / manifest.webmanifest / icon.svg   PWA
 ├── site/                 Generated website (not committed; built by Netlify on deploy)
 ├── tests/test_site.py    E2E tests (Playwright)
@@ -76,7 +81,7 @@ Requirements: Python 3.10+, `pip install requests beautifulsoup4`
 Workflow: make a change → push to `test` → check it on the staging URL → open a PR `test → main` → merge after review → production updates.
 
 **CI** (GitHub Actions, on push / PR to `main` or `test`):
-Checks the formatting of `templates/` (Prettier), builds the site with `scripts/build_site.py`, then runs `tests/test_site.py` in Chromium with Playwright (46 checks: search, filters, favorites, geolocation, routes, map, machine details, share links, opening status, mobile layout)
+Checks the formatting of `templates/` (Prettier), builds the site with `scripts/build_site.py`, then runs `tests/test_site.py` in Chromium with Playwright (61 checks: search, filters, favorites, geolocation, routes, map, machine details, share links, opening status, mobile layout)
 
 **Weekly data update** (`.github/workflows/update-data.yml`): every Monday at 03:00 JST the data is re-scraped; if anything changed, a PR is opened against `test` listing new/removed arcades and game/hours changes. E2E tests run inside the job first. It can also be triggered by hand from the Actions tab. Music Game Map blocks requests from GitHub Actions, so the weekly job reuses `data/mgm_cache.csv`; refresh Taiwan Chinese names / machine details by running `--mgm` locally now and then (a failed scan automatically keeps the old cache).
 
