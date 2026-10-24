@@ -473,7 +473,7 @@ window.shareView = async () => {
   const url = location.href;
   if (navigator.share) {
     try {
-      await navigator.share({ title: '音GO｜音遊機廳巡禮', url });
+      await navigator.share({ title: '音GO · 找機廳', url });
       return;
     } catch (_) {}
   }
