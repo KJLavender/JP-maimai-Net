@@ -9,6 +9,7 @@ import paths
 import csv, os, re, json, datetime, hashlib
 from collections import Counter
 from urllib.parse import quote
+from tw_brands import brand_zh
 
 HEADER_KEYS = ["名稱","地址","都道府縣","營業時間","遊戲","郵遞區號","地圖連結","詳細連結","緯度","經度","中文名","google_place_id","營業時間來源","週營業時間","機台","mgm_id"]
 RHYTHM_ORDER = [
@@ -67,10 +68,11 @@ def read_rows():
                 games = [GAME_ALIAS.get(x.strip(), x.strip()) for x in re.split(r"[、,]", g("遊戲")) if x.strip()]
                 games = list(dict.fromkeys(games))
                 zh = g("中文名")
-                # 台灣店的英文名＋英文地址丟給 Google 常跑出一串結果；有中文名就只搜中文名，
-                # 沒有就把「TOM'S WORLD(GIANT CITY@HSINCHU)」拆成一般字詞
+                county = tw_county(addr) if g("都道府縣") == "台灣" else ""
+                bz = brand_zh(name) if county else ""
+                # 台灣店的英文名丟給 Google 常配到別縣市的分店；有中文名就搜中文名，沒有就搜「中文品牌＋地址」
                 if g("都道府縣") == "台灣":
-                    q = zh or re.sub(r"[()@]+", " ", name).strip()
+                    q = zh or f"{bz or name} {addr}"
                 else:
                     q = f"{name} {addr}"
                 url = g("地圖連結") or ("https://www.google.com/maps/search/?api=1&query=" + quote(q))
@@ -84,8 +86,10 @@ def read_rows():
                        "i": m.group(1) if m else name + "|" + addr}
                 if zh and zh != name:
                     rec["z"] = zh
+                elif bz:   # 沒有正式中文名：顯示「品牌（縣市）」幫助辨認，不猜分店名
+                    rec["zg"] = f"{bz}（{county}）"
                 if rec["p"] == "台灣":
-                    rec["c"] = tw_county(addr)
+                    rec["c"] = county
                     if not rec["c"]:
                         print("⚠ 地址看不出台灣縣市（請補到 TW_COUNTY）：", name, addr)
                 if gp:

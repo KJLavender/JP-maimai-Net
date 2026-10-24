@@ -18,6 +18,7 @@
 import paths
 import argparse, csv, json, math, os, re, sys, time, unicodedata, datetime
 import requests
+from tw_brands import brand
 
 URL = "https://places.googleapis.com/v1/places:searchText"
 FIELDS = "places.id,places.displayName,places.location"
@@ -90,15 +91,21 @@ def search(session, key, query, lat, lng, lang):
     return r.json().get("places", [])
 
 
-def pick(cands, names, lat, lng, max_d=MAX_DIST_M):
-    """在 max_d 公尺內挑店名最像的；同分取近的。回傳 (place, 距離, 相似度) 或 None。"""
+def pick(cands, names, lat, lng, max_d=MAX_DIST_M, tw=False, brand_d=None):
+    """在 max_d 公尺內挑店名最像的；同分取近的。回傳 (place, 距離, 相似度) 或 None。
+    tw=True：台灣英文店名和 Google 中文店名同品牌（TOM'S WORLD ↔ 湯姆熊）時相似度至少算 0.6，
+    brand_d 給了就把同品牌的距離上限放寬到這個值（SEGA 台灣座標常偏幾百公尺到幾公里）。"""
     best = None
     for p in cands:
         loc = p.get("location", {})
         d = haversine_m((lat, lng), (loc.get("latitude", 0), loc.get("longitude", 0)))
-        if d > max_d:
+        dn = p.get("displayName", {}).get("text", "")
+        same = tw and any(n and brand(n) is not None and brand(n) == brand(dn, zh=True) for n in names)
+        if d > (brand_d if same and brand_d else max_d):
             continue
-        sim = max(similarity(n, p.get("displayName", {}).get("text", "")) for n in names if n)
+        sim = max(similarity(n, dn) for n in names if n)
+        if same:
+            sim = max(sim, 0.6)
         if sim == 0:   # 完全不像：多半是 Google 回了地址（「４丁目」「南崁路1號」）或隔壁別家店
             continue
         score = (round(sim, 2), -d)
@@ -144,13 +151,14 @@ def main():
             lat, lng = float(r[col["緯度"]]), float(r[col["經度"]])
             query = zh or re.sub(r"[()@]+", " ", name).strip()
             lang = "zh-TW" if r[col["都道府縣"]] == "台灣" else "ja"   # 店名用當地語言回傳才比對得到
+            tw = lang == "zh-TW"
             cands = search(s, key, query, lat, lng, lang); usage.add()
-            got = pick(cands, [name, zh], lat, lng)
+            got = pick(cands, [name, zh], lat, lng, tw=tw)
             if not got and usage.used < MONTHLY_CAP:
-                # 備案：店名＋地址再找一次、放寬到 500m（台灣英文店名常常單獨搜不到）
+                # 備案：店名＋地址再找一次、放寬到 500m（台灣英文店名常常單獨搜不到；同品牌放寬到 2km）
                 query = f"{query} {r[col['地址']]}"
                 cands = search(s, key, query, lat, lng, lang); usage.add()
-                got = pick(cands, [name, zh], lat, lng, 500)
+                got = pick(cands, [name, zh], lat, lng, 500, tw=tw, brand_d=2000)
             if got:
                 p, d, sim = got
                 r[col["google_place_id"]] = p["id"]; hit += 1
