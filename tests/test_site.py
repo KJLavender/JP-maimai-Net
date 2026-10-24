@@ -232,13 +232,13 @@ with sync_playwright() as p:
         keys = set(dj["shops"][0])
         check("data.json：欄位齊全", {"name", "hours", "games", "lat", "lng", "google_maps_url"} <= keys)
 
-    tw = page.evaluate("""()=>{const t=DATA.filter(d=>d.p==='台灣');
-      const g=t.find(d=>!d.gp&&!d.z&&(d.zg||'').startsWith('湯姆熊'));
-      return {n:t.length, zh:t.filter(d=>d.z||d.zg).length, zg:g&&g.zg, u:g&&decodeURIComponent(g.u)}}""")
-    check("台灣：店名幾乎都有中文（正式中文名，或「品牌（縣市）」）", tw["zh"] >= tw["n"] - 8, f"{tw['zh']}/{tw['n']}")
-    check("台灣：沒有 place ID 的店用「中文品牌＋地址」搜 Google，不會配到別縣市",
-          bool(tw["zg"]) and "query=湯姆熊 " in (tw["u"] or "") and re.search(r"\d", tw["u"]) and tw["zg"].endswith("）"),
-          f"{tw['zg']} → {(tw['u'] or '')[-60:]}")
+    tw = page.evaluate("""()=>{const t=DATA.filter(d=>d.p==='台灣'), g=t.filter(d=>!d.gp);
+      const q=d=>decodeURIComponent(d.u).split('query=')[1]||'';
+      return {n:t.length, zh:t.filter(d=>d.z||d.zg).length, pid:t.length-g.length,
+        bad:g.filter(d=>d.z?!q(d).startsWith(d.z):!q(d).includes(d.a)).map(d=>d.n)}}""")
+    check("台灣：店名幾乎都有中文（正式中文名，或「品牌（縣市）」）", tw["zh"] >= tw["n"] - 3, f"{tw['zh']}/{tw['n']}")
+    check("台灣：大部分店家有 Google place ID（店家資訊直接開到那間店）", tw["pid"] >= tw["n"] - 6, f"{tw['pid']}/{tw['n']}")
+    check("台灣：沒有 place ID 的店用中文名或「品牌＋地址」搜 Google，不用英文店名", not tw["bad"], str(tw["bad"]))
 
     # 🏆 制霸
     def view(name):

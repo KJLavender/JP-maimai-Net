@@ -27,8 +27,7 @@ MONTHLY_CAP = 2000          # Text Search Pro 每月免費 5,000；保守設在�
 MAX_DIST_M = 300            # Google 座標與 SEGA 座標超過這距離就不採用
 USAGE = paths.GOOGLE_USAGE
 # 人工確認過 Google 配錯的店（配到商場、KTV、餐廳…）：不給 place ID，網頁退回用店名搜尋
-SKIP = {"キッズランド", "星狩物語岸和田店", "HURO WORLD(CITY LINK@NANGANG)", "TOM'S WORLD(GLOBALMALL-NANGANG)",
-        "INTER PARK+1宇都宮", "ウェアハウス一橋学園店"}
+SKIP = {"キッズランド", "星狩物語岸和田店", "INTER PARK+1宇都宮", "ウェアハウス一橋学園店"}
 
 
 def load_key():

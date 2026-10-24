@@ -189,6 +189,8 @@ def merge_names(mgm_rows, test=False):
     for ri, la, lo in tw_idx:
         bs = brand(rows[ri][iName])
         rows[ri][iZh] = rows[ri][iM] = rows[ri][iMid] = ""   # 重算，不留上一輪的結果
+        if {"zh", "mgm"} & MANUAL.get(rows[ri][iName], {}).keys():   # 人工指定過的不自動配
+            continue
         for mj, r in enumerate(pts):
             d = haversine_m((la, lo), (r["lat"], r["lng"]))
             bm = brand(r["name"], zh=True)
