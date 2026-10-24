@@ -2,7 +2,7 @@
 用法: python tests/test_site.py [url]       （預設 http://localhost:8765/index.html）
 環境變數: BROWSER_CHANNEL（預設 chrome；設成空字串用 Playwright 內建 Chromium）
           SCREENSHOT_DIR（手機截圖輸出位置，預設 tests/out）"""
-import os, sys, re
+import json, os, sys, re
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
@@ -259,6 +259,7 @@ with sync_playwright() as p:
     page.reload(wait_until="networkidle")
     check("備份：清掉之後是 0", stat(0) == "0")
     page.once("dialog", lambda d: d.accept(code))
+    page.locator(".cq-more summary").click()   # 備份代碼收在「不用 Google 帳號？」裡
     page.locator("#cq-restore").click()
     page.wait_for_timeout(300)
     check("備份：貼上備份代碼可以還原", stat(0) == "1", code[:20] + "…")
@@ -296,6 +297,83 @@ with sync_playwright() as p:
 
     check("沒有 JS 錯誤", not errors, "; ".join(errors)[:200])
     ctx.close()
+
+    # ---------- ☁️ Google 同步（模擬 Google 登入與 Drive，兩個瀏覽器當兩台裝置） ----------
+    cloud = {}   # 假的 Drive：只有一個 appDataFolder 檔案
+    FAKE_GIS = ("window.google={accounts:{oauth2:{initTokenClient:o=>({requestAccessToken:()=>"
+                "setTimeout(()=>o.callback({access_token:'tok',expires_in:3600}),10)}),revoke:(t,cb)=>cb&&cb()}}};")
+
+    def fake_drive(route):
+        req, u = route.request, urlparse(route.request.url)
+        if req.headers.get("authorization") != "Bearer tok":
+            return route.fulfill(status=401, body="")
+        if req.method == "GET" and u.path == "/drive/v3/files":
+            return route.fulfill(json={"files": [{"id": "f1"}] if "doc" in cloud else []})
+        if req.method == "GET" and u.path == "/drive/v3/files/f1":
+            return route.fulfill(json=cloud["doc"])
+        if req.method == "PATCH" and u.path == "/upload/drive/v3/files/f1":
+            cloud["doc"] = json.loads(req.post_data)
+            return route.fulfill(json={"id": "f1"})
+        if req.method == "POST" and u.path == "/upload/drive/v3/files":
+            body = req.post_data.split("\r\n\r\n")[2].split("\r\n--")[0]   # multipart 第二段是內容
+            meta = json.loads(req.post_data.split("\r\n\r\n")[1].split("\r\n--")[0])
+            cloud["doc"], cloud["meta"] = json.loads(body), meta
+            return route.fulfill(json={"id": "f1"})
+        route.fulfill(status=404, body="")
+
+    def device():
+        c = b.new_context(viewport={"width": 1100, "height": 900})
+        c.add_init_script("window.MJM_CLIENT_ID='test-client'")
+        c.route("https://accounts.google.com/gsi/client", lambda r: r.fulfill(body=FAKE_GIS, content_type="text/javascript"))
+        c.route("https://www.googleapis.com/**", fake_drive)
+        pg = c.new_page()
+        pg.goto(URL + "#view=conquest", wait_until="networkidle")
+        return pg
+
+    def cloud_on(i):
+        return [k for k, (on, _) in cloud.get("doc", {}).get("visited", {}).items() if on]
+
+    A = device()
+    ids = A.evaluate("()=>[DATA[0].i, DATA[1].i]")
+    check("同步：有 Google 同步按鈕與隱私權說明", A.locator("#sync-now").is_visible()
+          and A.request.get(URL.rsplit("/", 1)[0] + "/privacy.html").ok)
+    A.evaluate("()=>toggleVisited(0)")
+    A.locator("#sync-now").click()
+    A.wait_for_function("()=>JSON.parse(localStorage.getItem('maimai:syncOn'))")
+    check("同步：裝置 A 第一次同步會在 appDataFolder 建檔",
+          cloud.get("meta", {}).get("parents") == ["appDataFolder"] and cloud_on(0) == [ids[0]], str(cloud_on(0)))
+    B = device()
+    B.evaluate("()=>toggleVisited(1)")
+    B.locator("#sync-now").click()
+    B.wait_for_function("()=>JSON.parse(localStorage.getItem('maimai:syncOn'))")
+    b_has = B.evaluate("()=>[...state.visited]")
+    check("同步：裝置 B 同步後兩台的紀錄合併", sorted(b_has) == sorted(ids) and sorted(cloud_on(0)) == sorted(ids),
+          f"B={len(b_has)} 雲端={len(cloud_on(0))}")
+    A.wait_for_timeout(50)
+    A.evaluate("()=>toggleVisited(0)")   # A 取消第一間；登入中會在 1.5 秒後自動上傳
+    A.wait_for_timeout(2500)
+    check("同步：登入中修改會自動上傳（A 取消的那間雲端也取消）", ids[0] not in cloud_on(0), str(cloud_on(0)))
+    id2 = A.evaluate("""()=>{const f=window.fetch;   // 上傳到一半時又標記一間
+      window.fetch=(u,o)=>{if(o&&o.method==='PATCH'&&!window._t){window._t=1;toggleVisited(2)}return f(u,o)};
+      syncNow(false);return DATA[2].i}""")
+    A.wait_for_timeout(2500)
+    check("同步：上傳途中的修改不會漏掉（會再傳一次）", id2 in cloud_on(0)
+          and not A.evaluate("()=>JSON.parse(localStorage.getItem('maimai:syncDirty'))"), str(cloud_on(0)))
+    A.evaluate("()=>toggleVisited(2)")
+    A.wait_for_timeout(2500)
+    B.locator("#sync-now").click()
+    B.wait_for_timeout(800)
+    check("同步：B 再同步，較新的「取消」勝出", B.evaluate("()=>[...state.visited]") == [ids[1]])
+    B.reload(wait_until="networkidle")
+    check("同步：開過同步的裝置一開頁就先載入 Google 登入", B.evaluate("()=>!!window.google"))
+    B.evaluate("()=>toggleFav(0)")
+    check("同步：還沒登入時修改會提示去按立即同步", "立即同步" in B.locator("#toast").inner_text()
+          and B.evaluate("()=>JSON.parse(localStorage.getItem('maimai:syncDirty'))"))
+    B.locator("#sync-stop").click()
+    check("同步：停止同步", not B.evaluate("()=>JSON.parse(localStorage.getItem('maimai:syncOn'))")
+          and B.locator("#sync-now").inner_text().startswith("☁️"))
+    A.context.close()
+    B.context.close()
 
     # ---------- 營業狀態（固定時鐘） ----------
     ctx = b.new_context(timezone_id="America/New_York")

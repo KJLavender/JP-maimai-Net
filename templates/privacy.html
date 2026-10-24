@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>隱私權說明 · 全日本音遊機廳</title>
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <style>
+      body {
+        margin: 0;
+        background: #0d0b1a;
+        color: #eceaff;
+        font:
+          16px/1.7 system-ui,
+          'Hiragino Sans',
+          'Noto Sans CJK JP',
+          'Yu Gothic UI',
+          sans-serif;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 28px 18px 60px;
+      }
+      h1 {
+        font-size: 1.5rem;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin-top: 2em;
+        color: #26e0e6;
+      }
+      a {
+        color: #26e0e6;
+      }
+      .muted {
+        color: #9d96c9;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p><a href="./">← 回到全日本音遊機廳</a></p>
+      <h1>隱私權說明</h1>
+      <p class="muted">最後更新：2026-10-24</p>
+
+      <h2>我們不收集你的資料</h2>
+      <p>
+        這個網站沒有帳號系統、沒有自己的伺服器，也不使用分析或廣告追蹤。你標記的「去過」「收藏」、篩選條件等，
+        只存在你自己瀏覽器的 localStorage 裡。
+      </p>
+
+      <h2>Google 同步（選用）</h2>
+      <p>如果你按了「用 Google 帳號同步」：</p>
+      <ul>
+        <li>
+          網站只會請求 <code>drive.appdata</code>
+          權限：只能讀寫網站自己在你 Google
+          雲端硬碟裡建立的一個隱藏檔案（<code>maimai-sync.json</code>），
+          <b>看不到、也不能修改你雲端硬碟裡的任何其他檔案</b>。
+        </li>
+        <li>這個檔案只包含你標記為「去過」和「收藏」的機廳 ID 與標記時間。</li>
+        <li>同步時，你的瀏覽器直接和 Google 連線；資料不會經過我們，我們也看不到。</li>
+        <li>Google 給的存取權杖只放在瀏覽器記憶體裡，關掉分頁或約一小時後就失效。</li>
+        <li>
+          按「停止同步」後這台裝置就不再同步（登入中的話也會一併撤銷授權）。要完全撤銷授權或刪除雲端上的檔案，
+          可到 Google 雲端硬碟 → 設定 →
+          管理應用程式，找到「全日本音遊機廳」選擇「刪除隱藏的應用程式資料」與「中斷與雲端硬碟的連結」。
+        </li>
+      </ul>
+
+      <h2>第三方服務</h2>
+      <p>
+        地圖使用 OpenStreetMap 與 OpenRailwayMap 的圖磚、「搜尋此地」使用 OpenStreetMap Nominatim，
+        連線時你的瀏覽器會向這些服務送出一般的網頁請求（例如 IP 位址）。
+      </p>
+
+      <h2>聯絡</h2>
+      <p>
+        有問題請到
+        <a href="https://github.com/KJLavender/JP-maimai-Net/issues">GitHub Issues</a> 回報。
+      </p>
+
+      <hr style="border-color: #2e2760; margin: 3em 0 1em" />
+      <h1 lang="en">Privacy</h1>
+      <div lang="en">
+        <p>
+          This site has no accounts, no server of its own, and no analytics or ad tracking. Arcades
+          you mark as visited or favorite, and your filters, are stored only in your browser's
+          localStorage.
+        </p>
+        <p>
+          If you turn on the optional <b>Google sync</b>, the site requests only the
+          <code>drive.appdata</code> scope: it can read and write a single hidden file
+          (<code>maimai-sync.json</code>) that it creates in your Google Drive's app data folder,
+          and <b>cannot see or change any of your other files</b>. The file contains only the IDs of
+          arcades you marked and when you marked them. Your browser talks to Google directly; the
+          data never passes through us. The access token stays in browser memory and expires after
+          about an hour. "Stop sync" turns sync off on that device (and revokes access if you are
+          signed in); to fully revoke access or delete the hidden file, use Google Drive → Settings
+          → Manage apps.
+        </p>
+        <p>
+          Map tiles come from OpenStreetMap and OpenRailwayMap and place search uses OpenStreetMap
+          Nominatim; your browser sends ordinary web requests (such as your IP address) to them.
+          Questions:
+          <a href="https://github.com/KJLavender/JP-maimai-Net/issues">GitHub Issues</a>.
+        </p>
+      </div>
+    </main>
+  </body>
+</html>

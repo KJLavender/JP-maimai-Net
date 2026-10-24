@@ -5,6 +5,7 @@ const A = [
   './',
   './index.html',
   './style.css',
+  './sync.js',
   './conquest.js',
   './stats.js',
   './app.js',

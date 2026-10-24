@@ -909,3 +909,30 @@ noscript {
 #st-more {
   margin-top: 8px;
 }
+
+/* ---------- ☁️ Google 同步 ---------- */
+.sync {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin: 12px auto;
+  max-width: 640px;
+  text-align: center;
+}
+.sync-st {
+  font-size: 0.82rem;
+}
+.sync-st b {
+  color: var(--amber);
+}
+.cq-more {
+  max-width: 640px;
+  margin: 8px auto;
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-align: center;
+}
+.cq-more summary {
+  cursor: pointer;
+}

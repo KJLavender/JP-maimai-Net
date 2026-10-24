@@ -405,6 +405,7 @@ window.toggleFav = function (idx, el) {
   if (state.favs.has(id)) state.favs.delete(id);
   else state.favs.add(id);
   LS.set('favs', [...state.favs]);
+  markChanged('f', id); // Google 同步用
   if (el) el.textContent = state.favs.has(id) ? '★' : '☆';
   if (state.favOnly) render();
 };

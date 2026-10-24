@@ -86,6 +86,7 @@ window.toggleVisited = function (idx, el) {
   if (state.visited.has(id)) state.visited.delete(id);
   else state.visited.add(id);
   LS.set('visited', [...state.visited]);
+  markChanged('v', id); // Google 同步用（有開同步就自動上傳）
   if (el) {
     const on = state.visited.has(id);
     el.dataset.on = on ? '1' : '0';
@@ -124,13 +125,16 @@ function renderConquest(el) {
   </div>
   <div class="cq-map" style="grid-template-columns:repeat(${TILE_COLS},1fr);grid-template-rows:repeat(${TILE_ROWS},1fr)">${tiles}</div>
   <div class="cq-legend">${legend}</div>
-  <p class="cq-hint">在清單或地圖的店家上按「🏁 標記去過」就會記下來；點縣名可以看那個縣的機廳。<br>
-  紀錄只存在這個瀏覽器，換手機前請先「備份」。</p>
-  <div class="cq-actions">
-    <button class="btn small" id="cq-export">📷 匯出圖片</button>
-    <button class="btn ghost small" id="cq-backup">💾 備份</button>
-    <button class="btn ghost small" id="cq-restore">📥 還原</button>
-  </div>`;
+  <p class="cq-hint">在清單或地圖的店家上按「🏁 標記去過」就會記下來；點縣名可以看那個縣的機廳。</p>
+  <div class="cq-actions"><button class="btn small" id="cq-export">📷 匯出圖片</button></div>
+  ${syncPanelHTML()}
+  <details class="cq-more"><summary>不用 Google 帳號？用備份代碼搬紀錄</summary>
+    <p class="cq-hint">紀錄平常只存在這個瀏覽器。換手機時先按「備份」複製代碼，到新手機按「還原」貼上。</p>
+    <div class="cq-actions">
+      <button class="btn ghost small" id="cq-backup">💾 備份</button>
+      <button class="btn ghost small" id="cq-restore">📥 還原</button>
+    </div>
+  </details>`;
   el.querySelectorAll('.ctile').forEach(
     b =>
       (b.onclick = () => {
@@ -144,6 +148,7 @@ function renderConquest(el) {
   el.querySelector('#cq-export').onclick = exportConquestImage;
   el.querySelector('#cq-backup').onclick = backupVisited;
   el.querySelector('#cq-restore').onclick = restoreVisited;
+  bindSyncPanel(el);
 }
 
 /* ---- 備份／還原：把「去過」和「收藏」轉成一串代碼，換手機時貼上 ---- */
@@ -173,8 +178,8 @@ function applyBackup(code) {
     return false;
   }
   const known = id => byId[id]; // 店已下架的 ID 就略過
-  (o.visited || []).filter(known).forEach(id => state.visited.add(id));
-  (o.favs || []).filter(known).forEach(id => state.favs.add(id));
+  (o.visited || []).filter(known).forEach(id => (state.visited.add(id), markChanged('v', id)));
+  (o.favs || []).filter(known).forEach(id => (state.favs.add(id), markChanged('f', id)));
   LS.set('visited', [...state.visited]);
   LS.set('favs', [...state.favs]);
   return true;
