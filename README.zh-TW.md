@@ -1,4 +1,4 @@
-# 🎵 全日本音遊機廳 · Arcade Finder
+# 🎵 音GO｜音遊機廳巡禮（OtoGO）
 
 [English](README.md) | **繁體中文**
 

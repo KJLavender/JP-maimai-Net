@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# 「全日本音遊機廳」網站產生器：data/arcades.csv ＋ templates/（前端原始檔）→ site/。
+# 「音GO｜音遊機廳巡禮」網站產生器：data/arcades.csv ＋ templates/（前端原始檔）→ site/。
 # site/ 是產生出來的結果，不進 repo；Netlify 部署時會執行本腳本（見 netlify.toml）。
 # 功能：營業判斷（依星期幾）＋倒數、音遊按鈕(自動生成)、其他遊戲下拉、定位/距離/半徑、
 #       深夜快篩、★收藏、精準導航、機廳巡り路線(多點導航)、台灣機台資訊、分享連結、

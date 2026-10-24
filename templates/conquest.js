@@ -293,7 +293,7 @@ function drawConquest() {
   g.fillRect(0, 0, W, H);
   g.fillStyle = '#eceaff';
   g.font = `800 56px ${F}`;
-  g.fillText(region === 'jp' ? '我的音遊機廳制霸' : '我的音遊機廳制霸 · 台灣', 64, 120);
+  g.fillText(region === 'jp' ? '我的機廳制霸' : '我的機廳制霸 · 台灣', 64, 120);
   g.fillStyle = '#9d96c9';
   g.font = `500 30px ${F}`;
   g.fillText(
@@ -343,21 +343,21 @@ function drawConquest() {
   });
   g.fillStyle = '#9d96c9';
   g.font = `500 26px ${F}`;
-  g.fillText('maimai-japan-map.netlify.app', 64, H - 64);
+  g.fillText('音GO · maimai-japan-map.netlify.app', 64, H - 64);
   return cv;
 }
 function exportConquestImage() {
   drawConquest().toBlob(async blob => {
-    const file = new File([blob], 'maimai-conquest.png', { type: 'image/png' });
+    const file = new File([blob], 'otogo-conquest.png', { type: 'image/png' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: '我的音遊機廳制霸' });
+        await navigator.share({ files: [file], title: '我的機廳制霸 · 音GO' });
         return;
       } catch (_) {}
     }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'maimai-conquest.png';
+    a.download = 'otogo-conquest.png';
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }, 'image/png');
