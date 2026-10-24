@@ -910,7 +910,7 @@ noscript {
   margin-top: 8px;
 }
 
-/* ---------- ☁️ Google 同步 ---------- */
+/* ---------- 👤 帳號與同步 ---------- */
 .sync {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -935,4 +935,247 @@ noscript {
 }
 .cq-more summary {
   cursor: pointer;
+}
+.userbtn {
+  margin-left: auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 45%;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface2);
+  color: var(--text);
+  font: 700 0.8rem var(--f);
+  cursor: pointer;
+}
+.userbtn.in {
+  padding: 3px 12px 3px 3px;
+}
+.userbtn[hidden] {
+  display: none;
+}
+.uname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.avatar {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--magenta);
+  color: #fff;
+  font-size: 0.8rem;
+  object-fit: cover;
+}
+.dlg {
+  width: min(380px, calc(100% - 28px));
+  padding: 22px 20px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--f);
+}
+.dlg::backdrop {
+  background: rgba(5, 4, 12, 0.7);
+}
+.dlg h2 {
+  margin: 0 0 6px;
+  font-size: 1.15rem;
+}
+.dlg-x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+}
+.dlg-hint {
+  font-size: 0.76rem;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+.dlg-hint a {
+  color: var(--cyan);
+}
+.gbtn {
+  width: 100%;
+  padding: 11px;
+  border: 0;
+  border-radius: 10px;
+  background: #fff;
+  color: #1f1f1f;
+  font: 700 0.9rem var(--f);
+  cursor: pointer;
+}
+.gbtn b {
+  color: #4285f4;
+  margin-right: 6px;
+}
+.dlg-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 12px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.dlg-or::before,
+.dlg-or::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+.dlg-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.dlg-tabs button {
+  flex: 1;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font: 700 0.8rem var(--f);
+  cursor: pointer;
+}
+.dlg-tabs button.on {
+  background: var(--surface2);
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
+#lg-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#lg-form input {
+  padding: 10px 12px;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  outline: none;
+}
+#lg-form input:focus {
+  border-color: var(--cyan);
+}
+#lg-form .btn {
+  flex: none;
+  border: 0;
+  cursor: pointer;
+}
+.dlg-err {
+  min-height: 1.2em;
+  font-size: 0.78rem;
+  color: var(--amber);
+}
+.linkbtn {
+  display: block;
+  margin: 10px auto 6px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: 0.76rem var(--f);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.linkbtn.danger {
+  color: var(--magenta);
+}
+.linkbtn[hidden] {
+  display: none;
+}
+.linkbtn.inline {
+  display: inline;
+  margin: 0 0 0 4px;
+  color: var(--cyan);
+}
+.me-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.me-head .avatar {
+  width: 44px;
+  height: 44px;
+  font-size: 1.2rem;
+}
+.me-head b,
+.me-head small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.me-head small {
+  color: var(--muted);
+}
+.me-stats {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.me-stats div {
+  flex: 1;
+  text-align: center;
+  padding: 8px 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.me-stats b {
+  display: block;
+  font-size: 1.3rem;
+}
+.me-stats small {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.me-stats span {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.me-sync {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.me-sync b {
+  color: var(--amber);
+}
+.me-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.me-acts .btn,
+.sync .btn {
+  border: 0;
+  cursor: pointer;
+}
+.me-acts .btn.ghost,
+.sync .btn.ghost {
+  border: 1px solid var(--line);
+}
+@media (max-width: 430px) {
+  /* 手機登入後把英文副標讓給名字，標題列才不會換行 */
+  .trow:has(.userbtn.in) .eyebrow {
+    display: none;
+  }
+  .uname {
+    max-width: 6.5em;
+  }
 }

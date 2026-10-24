@@ -405,7 +405,7 @@ window.toggleFav = function (idx, el) {
   if (state.favs.has(id)) state.favs.delete(id);
   else state.favs.add(id);
   LS.set('favs', [...state.favs]);
-  markChanged('f', id); // Google 同步用
+  markChanged('f', id); // 登入中會自動同步
   if (el) el.textContent = state.favs.has(id) ? '★' : '☆';
   if (state.favOnly) render();
 };
