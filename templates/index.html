@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-    <title>全日本音遊機廳</title>
+    <title>音GO · 找機廳</title>
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <meta name="theme-color" content="#0d0b1a" />
@@ -19,8 +19,9 @@
     <header>
       <div class="hbar">
         <div class="trow">
-          <h1 class="title">全日本<b>音遊</b>機廳</h1>
-          <span class="eyebrow">Arcade Finder</span>
+          <h1 class="title">音<b>GO</b></h1>
+          <span class="eyebrow">找機廳</span>
+          <button id="userbtn" class="userbtn" hidden></button>
         </div>
         <div class="sub">__TOTAL__ 間 · 營業狀態依當地時間計算</div>
         <div class="qrow">
@@ -79,7 +80,7 @@
     </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-    <script src="sync.js"></script>
+    <script src="account.js"></script>
     <script src="conquest.js"></script>
     <script src="stats.js"></script>
     <script src="app.js"></script>

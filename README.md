@@ -1,4 +1,4 @@
-# 🎵 Japan Rhythm Game Arcade Finder
+# 🎵 OtoGO — Rhythm Game Arcade Finder (音GO · 找機廳)
 
 **English** | [繁體中文](README.zh-TW.md)
 
@@ -22,7 +22,7 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 - 🧭 **Arcade crawl route**: pick up to 9 stops and open them as one multi-stop Google Maps route
 - 🎰 **Taiwan machine details**: machine count, version/cabinet, coin type, queueing style and player notes (from Music Game Map)
 - 🔗 **Shareable links**: filters are stored in the URL, so a friend opening the link sees the same results (only "search this place" locations are shared, never your GPS position)
-- 🏆 **Arcade conquest**: tap "🏁 Mark visited" on any arcade; a tile map of the 47 prefectures fills in by how much you've covered and can be exported as an image to share. Records live in your own browser; optionally turn on **Google sync** to merge phone and computer automatically (stored in a hidden app folder in *your own* Google Drive, no server of ours involved), or move them with a backup / restore code
+- 🏆 **Arcade conquest**: tap "🏁 Mark visited" on any arcade; a tile map of the 47 prefectures fills in by how much you've covered and can be exported as an image to share. Records live in your own browser; optionally **sign in** (Google or email + password, top right) to sync them between phone and computer automatically, or move them with a backup / restore code
 - 📊 **Stats**: how many arcades carry each rhythm game over time (one more point every weekly update) and a ranking by prefecture, switchable by game, with a table view
 - 🗺️ **List / map views**: clustered markers, green = open now
 - 📱 **PWA**: add to home screen; the list works offline
@@ -52,7 +52,7 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 │   ├── index.html        Page skeleton (__DATA__ etc. are filled in by build_site.py)
 │   ├── style.css / app.js
 │   ├── conquest.js / stats.js   🏆 Conquest, 📊 Stats
-│   ├── sync.js / privacy.html   ☁️ Google sync, privacy notice
+│   ├── account.js / privacy.html   👤 Sign-in & sync (Firebase), privacy notice
 │   └── sw.js / manifest.webmanifest / icon.svg   PWA
 ├── site/                 Generated website (not committed; built by Netlify on deploy)
 ├── tests/test_site.py    E2E tests (Playwright)
@@ -82,20 +82,21 @@ Requirements: Python 3.10+, `pip install requests beautifulsoup4`
 Workflow: make a change → push to `test` → check it on the staging URL → open a PR `test → main` → merge after review → production updates.
 
 **CI** (GitHub Actions, on push / PR to `main` or `test`):
-Checks the formatting of `templates/` (Prettier), builds the site with `scripts/build_site.py`, then runs `tests/test_site.py` in Chromium with Playwright (70 checks: search, filters, favorites, geolocation, routes, map, machine details, share links, conquest, stats, Google sync, opening status, mobile layout)
+Checks the formatting of `templates/` (Prettier), builds the site with `scripts/build_site.py`, then runs `tests/test_site.py` in Chromium with Playwright (search, filters, favorites, geolocation, routes, map, machine details, share links, conquest, stats, accounts & sync, opening status, mobile layout)
 
 **Weekly data update** (`.github/workflows/update-data.yml`): every Monday at 03:00 JST the data is re-scraped; if anything changed, a PR is opened against `test` listing new/removed arcades and game/hours changes. E2E tests run inside the job first. It can also be triggered by hand from the Actions tab. Music Game Map blocks requests from GitHub Actions, so the weekly job reuses `data/mgm_cache.csv`; refresh Taiwan Chinese names / machine details by running `--mgm` locally now and then (a failed scan automatically keeps the old cache).
 
 **CD**: on deploy, Netlify runs `python3 scripts/build_site.py` to generate `site/` and publishes it (see `netlify.toml`). `site/` is not committed: change `templates/` to change the page, `data/` to change the data.
 
-**Google sync setup** (one time; without it the sync button is simply hidden):
+**Accounts setup (Firebase)** (one time; until `FIREBASE_CONFIG` in `templates/account.js` is filled in, the sign-in button is hidden):
 
-1. [Google Cloud console](https://console.cloud.google.com/) → create a project → *APIs & Services* → enable the **Google Drive API**
-2. *OAuth consent screen*: External; app name 「全日本音遊機廳」; privacy policy `https://maimai-japan-map.netlify.app/privacy.html`; add the scope `https://www.googleapis.com/auth/drive.appdata` (non-sensitive, so no security review is needed); then **Publish app** (while in *Testing* only listed test users can sign in)
-3. *Credentials* → *Create OAuth client ID* → *Web application*; **Authorized JavaScript origins**: `https://maimai-japan-map.netlify.app`, `https://test--maimai-japan-map.netlify.app`, `http://localhost:8765` (no redirect URI needed)
-4. Netlify → *Site configuration* → *Environment variables*: `GOOGLE_OAUTH_CLIENT_ID=xxxx.apps.googleusercontent.com`, then redeploy. For local builds put the same line in `.env`
+1. [Firebase console](https://console.firebase.google.com/) → *Create a project* → pick the existing Google Cloud project (Spark / free plan)
+2. *Authentication* → *Sign-in method*: enable **Email/Password** and **Google**. *Settings* → *Authorized domains*: add `maimai-japan-map.netlify.app` and `test--maimai-japan-map.netlify.app` (`localhost` is there by default)
+3. *Firestore Database* → *Create database* (production mode, region e.g. `asia-east1`) → *Rules*: paste [`firestore.rules`](firestore.rules) and publish
+4. *Project settings* → *Your apps* → add a **Web** app → copy `apiKey`, `authDomain`, `projectId`, `appId` into `FIREBASE_CONFIG` in `templates/account.js`
+5. Google Cloud console → *Google Auth Platform* → *Audience* → **Publish app** (in *Testing* only listed test users can use Google sign-in)
 
-The client ID is public (it ends up in the page), it is not a secret. Deploy previews have random URLs that are not authorized origins, so sign-in only works on the URLs above.
+The Firebase web config is public (it ships in the page) and is not a secret; access is enforced by `firestore.rules`, where each user can only read and write `users/{their uid}`. The Firebase SDK is loaded only when someone opens the sign-in dialog or was signed in before.
 
 Run the tests locally:
 
