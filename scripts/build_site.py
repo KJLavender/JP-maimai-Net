@@ -21,6 +21,22 @@ GAME_ALIAS = {
     "maimai DX International Version": "maimai でらっくす",
     "CHUNITHM International Version": "CHUNITHM",
 }
+# 台灣店的英文地址 → 縣市（制霸地圖、搜尋用）。依順序比對：New Taipei 要在 Taipei 前面
+TW_COUNTY = [
+    ("NEWTAIPEI", "新北市"), ("TAIPEI", "台北市"), ("KEELUNG", "基隆市"),
+    ("TAOYUAN", "桃園市"),
+    ("HSINCHUCOUNTY", "新竹縣"), ("HSINCHU", "新竹市"), ("MIAOLI", "苗栗縣"),
+    ("TAICHUNG", "台中市"), ("CHANGHUA", "彰化縣"), ("NANTOU", "南投縣"), ("YUNLIN", "雲林縣"),
+    ("CHIAYICOUNTY", "嘉義縣"), ("CHIAYI", "嘉義市"), ("TAINAN", "台南市"), ("KAOHSIUNG", "高雄市"),
+    ("PINGTUNG", "屏東縣"), ("YILAN", "宜蘭縣"), ("HUALIEN", "花蓮縣"), ("TAITUNG", "台東縣"),
+    ("PENGHU", "澎湖縣"), ("KINMEN", "金門縣"), ("LIENCHIANG", "連江縣"),
+    ("NANGANGDIST", "台北市"), ("SANMINDIST", "高雄市"),   # 地址沒寫縣市、只有區名的
+]
+
+
+def tw_county(addr):
+    a = re.sub(r"[^A-Z]", "", addr.upper())
+    return next((c for k, c in TW_COUNTY if k in a), "")
 
 def read_rows():
     if not os.path.exists(paths.ARCADES):
@@ -68,6 +84,10 @@ def read_rows():
                        "i": m.group(1) if m else name + "|" + addr}
                 if zh and zh != name:
                     rec["z"] = zh
+                if rec["p"] == "台灣":
+                    rec["c"] = tw_county(addr)
+                    if not rec["c"]:
+                        print("⚠ 地址看不出台灣縣市（請補到 TW_COUNTY）：", name, addr)
                 if gp:
                     rec["gp"] = gp
                 if g("營業時間來源") in ("Google", "MGM"):

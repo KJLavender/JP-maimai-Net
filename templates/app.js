@@ -15,7 +15,9 @@ const foldCJK = s => {
 };
 DATA.forEach((d, i) => {
   d._idx = i;
-  d._s = foldCJK((d.n + ' ' + d.a + ' ' + d.p + ' ' + (d.z || '')).toLowerCase());
+  d._s = foldCJK(
+    (d.n + ' ' + d.a + ' ' + d.p + ' ' + (d.z || '') + ' ' + (d.c || '')).toLowerCase(),
+  );
 });
 const byId = {};
 DATA.forEach(d => (byId[d.i] = d));

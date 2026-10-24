@@ -746,6 +746,39 @@ noscript {
 .ctile:focus-visible {
   outline: 2px solid var(--cyan);
 }
+.ctile.empty {
+  opacity: 0.35;
+  cursor: default;
+  outline: none;
+}
+.cq-map.tw .ctile b {
+  font-size: 0.85rem;
+}
+.cq-map.tw .ctile span {
+  display: block;
+  font-size: 0.68rem;
+}
+.cq-region {
+  display: flex;
+  gap: 6px;
+  max-width: 320px;
+  margin: 0 auto 12px;
+}
+.cq-region button {
+  flex: 1;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font: 700 0.82rem var(--f);
+  cursor: pointer;
+}
+.cq-region button.on {
+  background: var(--surface2);
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
 .cq-legend {
   display: flex;
   gap: 12px;
