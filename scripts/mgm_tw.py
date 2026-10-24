@@ -15,7 +15,7 @@ import paths
 import csv, re, sys, time, math, argparse, os, json
 import requests
 from bs4 import BeautifulSoup
-from tw_brands import brand
+from tw_brands import brand, MANUAL
 
 MGM = "https://mgm.wind-chime.info/game_center/"
 HEADERS = {"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -202,6 +202,11 @@ def merge_names(mgm_rows, test=False):
     cand.sort(key=lambda x: x[:3])
     cand = [(d, ri, mj) for _, _, d, ri, mj in cand]
     used_sega, used_mgm, assign = set(), set(), {}
+    by_id = {str(r["id"]): j for j, r in enumerate(pts)}
+    for ri, _, _ in tw_idx:   # 人工指定的先配
+        mj = by_id.get(MANUAL.get(rows[ri][iName], {}).get("mgm"))
+        if mj is not None:
+            used_sega.add(ri); used_mgm.add(mj); assign[ri] = (pts[mj], 0)
     for d, ri, mj in cand:
         if ri in used_sega or mj in used_mgm:
             continue
@@ -218,6 +223,10 @@ def merge_names(mgm_rows, test=False):
             rows[ri][iH], rows[ri][iHs] = m["hours"], "MGM"; hours_hit += 1
         if len(samples) < 15:
             samples.append((rows[ri][iName], zh, round(d)))
+    for ri, _, _ in tw_idx:
+        zh = MANUAL.get(rows[ri][iName], {}).get("zh")
+        if zh and ri not in assign:
+            rows[ri][iZh] = zh; hit += 1
     out = rows[1:]
 
     tw_total = len(tw_idx)

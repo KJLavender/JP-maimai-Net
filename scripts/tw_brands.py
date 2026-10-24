@@ -1,7 +1,16 @@
 # -*- coding: utf-8 -*-
-"""台灣機廳連鎖品牌：SEGA 英文店名 ↔ Music Game Map 中文店名。
+"""台灣機廳連鎖品牌：SEGA 英文店名 ↔ Music Game Map 中文店名，以及人工確認過的個別店對應。
 mgm_tw.py 配對中文名、google_place_ids.py 比對 Google 店名、build_site.py 顯示用（只用標準函式庫）。"""
 import re
+
+# 自動配對會配錯的店（人工對過 Google 地圖）：SEGA 店名 → MGM id／Google place ID／中文名（MGM 沒有時）
+MANUAL = {
+    # 搬到信陽街 9 號，現在叫抓抓族；舊址旁的「哈啦星球-信陽店」不是這間
+    "HALA(XINYANG)": {"mgm": "182", "pid": "ChIJywFzmpypQjQRh4NTM6lu5N0"},
+    # 公館有一店、二店；SEGA 登記的遊戲有 Project DIVA，MGM 上只有二店有 DIVA
+    "HALA PLANET": {"mgm": "222", "pid": "ChIJFwkUFACpQjQRAV1k9zdWuzQ"},
+    "TOM'S WORLD (HANSHIN@KAOHSIUNG)": {"zh": "湯姆熊漢神巨蛋店", "pid": "ChIJWYPGBEoFbjQRWFYYqw5t2Z0"},
+}
 
 # (英文店名 regex, 中文店名 regex, 顯示用中文品牌；空字串＝不確定中文名，不顯示)
 BRANDS = [

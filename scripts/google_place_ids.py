@@ -19,7 +19,7 @@
 import paths
 import argparse, csv, json, math, os, re, sys, time, unicodedata, datetime
 import requests
-from tw_brands import brand
+from tw_brands import brand, MANUAL
 
 URL = "https://places.googleapis.com/v1/places:searchText"
 FIELDS = "places.id,places.displayName,places.location"
@@ -28,8 +28,7 @@ MAX_DIST_M = 300            # Google 座標與 SEGA 座標超過這距離就不�
 USAGE = paths.GOOGLE_USAGE
 # 人工確認過 Google 配錯的店（配到商場、KTV、餐廳…）：不給 place ID，網頁退回用店名搜尋
 SKIP = {"キッズランド", "星狩物語岸和田店", "HURO WORLD(CITY LINK@NANGANG)", "TOM'S WORLD(GLOBALMALL-NANGANG)",
-        "INTER PARK+1宇都宮", "ウェアハウス一橋学園店",
-        "HALA(XINYANG)", "HALA PLANET", "TOM'S WORLD (HANSHIN@KAOHSIUNG)"}
+        "INTER PARK+1宇都宮", "ウェアハウス一橋学園店"}
 
 
 def load_key():
@@ -136,7 +135,10 @@ def main():
     for r in body:
         if r[col["名稱"]] in SKIP:
             r[col["google_place_id"]] = ""
+        if MANUAL.get(r[col["名稱"]], {}).get("pid"):   # 人工對過的直接用，不再搜尋
+            r[col["google_place_id"]] = MANUAL[r[col["名稱"]]]["pid"]
     todo = [r for r in body if r[col["緯度"]] and r[col["名稱"]] not in SKIP
+            and not MANUAL.get(r[col["名稱"]], {}).get("pid")
             and (not args.pref or r[col["都道府縣"]] == args.pref)
             and (args.redo or not r[col["google_place_id"]])]
     if args.test:
