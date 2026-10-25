@@ -674,7 +674,8 @@ noscript {
   font-weight: 700;
 }
 #conquest,
-#stats {
+#stats,
+#b50 {
   display: none;
   margin-top: 12px;
 }
@@ -1211,4 +1212,135 @@ noscript {
   .uname {
     max-width: 6.5em;
   }
+}
+
+/* ---------- 🎵 B50 ---------- */
+.b50-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.b50-name {
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+.b50-head small {
+  display: block;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+.b50-total {
+  text-align: right;
+}
+.b50-total b {
+  font-size: 2rem;
+  line-height: 1.1;
+  color: var(--amber);
+}
+.b50-h {
+  font-size: 0.95rem;
+  margin: 18px 0 8px;
+}
+.b50-h small {
+  color: var(--muted);
+  font-weight: 500;
+}
+.b50-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  margin-bottom: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+.b50-no {
+  width: 1.6em;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.b50-cover {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex: none;
+}
+.b50-info {
+  flex: 1;
+  min-width: 0;
+}
+.b50-title {
+  font-weight: 700;
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.b50-meta {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.b50-meta b {
+  color: var(--green);
+}
+.b50-diff {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 5px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.62rem;
+}
+.b50-score {
+  text-align: right;
+  flex: none;
+}
+.b50-score b {
+  font-size: 0.86rem;
+}
+.b50-score small {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.b50-score small b {
+  font-size: 0.8rem;
+  color: var(--amber);
+}
+.b50-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 30px 10px 10px;
+}
+.b50-guide {
+  margin: 18px 0 8px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  font-size: 0.82rem;
+}
+.b50-guide summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.b50-guide li {
+  margin: 8px 0;
+}
+.b50-guide a:not(.btn) {
+  color: var(--cyan);
+}
+.b50-guide .btn {
+  display: inline-block;
+  border: 0;
+  cursor: pointer;
+  margin: 2px 0;
 }

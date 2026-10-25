@@ -24,6 +24,7 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 - 🔗 **Shareable links**: filters are stored in the URL, so a friend opening the link sees the same results (only "search this place" locations are shared, never your GPS position)
 - 🏆 **Arcade conquest**: tap "🏁 Mark visited" on any arcade; a tile map of the 47 prefectures fills in by how much you've covered and can be exported as an image to share. Records live in your own browser; optionally **sign in** (Google or email + password, top right) to sync them between phone and computer automatically, or move them with a backup / restore code
 - 📊 **Stats**: how many arcades carry each rhythm game over time (one more point every weekly update) and a ranking by prefecture, switchable by game, with a table view
+- 🎵 **maimai DX B50**: run a bookmarklet on maimai DX NET (International) while logged in; it reads *your own* scores and brings them back to compute Best 35 + New 15 with chart constants. Your SEGA password never passes through this site; scores stay in the browser and sync to your account when signed in
 - 🗺️ **List / map views**: clustered markers, green = open now
 - 📱 **PWA**: add to home screen; the list works offline
 
@@ -53,6 +54,7 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 │   ├── style.css / app.js
 │   ├── conquest.js / stats.js   🏆 Conquest, 📊 Stats
 │   ├── account.js / privacy.html   👤 Sign-in & sync (Firebase), privacy notice
+│   ├── b50.js / bookmarklet.js     🎵 B50 page, and the bookmarklet that runs on maimai DX NET
 │   └── sw.js / manifest.webmanifest / icon.svg   PWA
 ├── site/                 Generated website (not committed; built by Netlify on deploy)
 ├── tests/test_site.py    E2E tests (Playwright)
@@ -67,6 +69,7 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 | `python scripts/build_site.py` | Reads `data/arcades.csv` and `templates/` and generates `site/` (arcade data inlined in `index.html`, plus `data.json`); the Service Worker cache version is derived from the content automatically |
 | `python scripts/google_place_ids.py` | Looks up each arcade's Google place ID with the Places API so "store info" and navigation open the exact place (needs `GOOGLE_MAPS_API_KEY` in `.env`; only place IDs are stored, per Google's caching rules) |
 | `python scripts/google_hours.py` | Fills opening hours (including per-weekday hours) from Google Place Details: all Taiwan arcades plus Japanese ones with no official hours; never exceeds the daily quota or the 1,000 free calls per month |
+| `python scripts/songs.py` | Downloads chart constants from [arcade-songs](https://arcade-songs.zetaraku.dev) and slims them into `data/songs.json` (~240 KB) for the B50 page; run it when a new version or constants come out |
 
 The other scripts (`scrape_*`, `coords_*`, `mgm_tw.py`) are called by `update_data.py` and can also be run on their own for debugging (`--test`). Every script works from any directory.
 

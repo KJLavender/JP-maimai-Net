@@ -67,7 +67,10 @@ function onUser(u) {
   acct.user = u;
   if (u) {
     rememberUser(u);
-    if (!was || was.uid !== u.uid) syncNow();
+    if (!was || was.uid !== u.uid) {
+      syncNow();
+      loadMaiCloud();
+    }
   } else {
     LS.set('user', null);
     renderUserBtn();
@@ -210,7 +213,7 @@ async function resetPassword(email) {
 function clearLocalRecords() {
   state.visited = new Set();
   state.favs = new Set();
-  ['visited', 'favs', 'syncTimes', 'syncDirty', 'syncAt'].forEach(k =>
+  ['visited', 'favs', 'syncTimes', 'syncDirty', 'syncAt', 'mai'].forEach(k =>
     localStorage.removeItem('maimai:' + k),
   );
 }
@@ -245,6 +248,7 @@ async function deleteAccount() {
   try {
     const { auth, fs, A, db } = acct.fb;
     clearTimeout(acct.timer);
+    await fs.deleteDoc(fs.doc(db, 'users', acct.user.uid, 'mai', 'b50'));
     await fs.deleteDoc(fs.doc(db, 'users', acct.user.uid));
     await auth.deleteUser(A.currentUser);
     LS.set('syncDirty', false);
@@ -253,6 +257,28 @@ async function deleteAccount() {
   } catch (e) {
     toast(authMsg(e));
   }
+}
+
+/* ---- 🎵 B50 成績：另存一份文件 users/{uid}/mai/b50，內容存成 JSON 字串（Firestore 不能存陣列裡的陣列） ---- */
+const maiRef = () => acct.fb.fs.doc(acct.fb.db, 'users', acct.user.uid, 'mai', 'b50');
+async function saveMaiCloud(data) {
+  if (!acct.user) return;
+  try {
+    await acct.fb.fs.setDoc(maiRef(), { at: data.at, data: JSON.stringify(data) });
+  } catch (e) {
+    toast('B50 上傳到帳號失敗：' + authMsg(e));
+  }
+}
+async function loadMaiCloud() {
+  try {
+    const snap = await acct.fb.fs.getDoc(maiRef()),
+      local = LS.get('mai', null),
+      remote = snap.exists() ? snap.data() : null;
+    if (remote && (!local || remote.at > local.at)) {
+      LS.set('mai', JSON.parse(remote.data));
+      if (state.view === 'b50') render();
+    } else if (local && (!remote || local.at > remote.at)) saveMaiCloud(local);
+  } catch (_) {}
 }
 
 /* ---- 右上角：登入按鈕／使用者名稱 ---- */

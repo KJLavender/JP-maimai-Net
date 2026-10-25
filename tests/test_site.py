@@ -2,7 +2,8 @@
 用法: python tests/test_site.py [url]       （預設 http://localhost:8765/index.html）
 環境變數: BROWSER_CHANNEL（預設 chrome；設成空字串用 Playwright 內建 Chromium）
           SCREENSHOT_DIR（手機截圖輸出位置，預設 tests/out）"""
-import json, os, sys, re
+import json, os, sys, re, math, html
+from collections import Counter
 from urllib.parse import urlparse, unquote
 from playwright.sync_api import sync_playwright
 
@@ -377,6 +378,8 @@ export const runTransaction = async (_, fn) => {
   return out;
 };
 export const deleteDoc = ref => call(ref.path, 'delete', '{}');
+export const setDoc = (ref, d) => call(ref.path, 'set', JSON.stringify(d));
+export const getDoc = async ref => { const d = await call(ref.path, 'get'); return { exists: () => !!d, data: () => d }; };
 """,
     }
     CORS = {"Access-Control-Allow-Origin": "*"}
@@ -387,7 +390,8 @@ export const deleteDoc = ref => call(ref.path, 'delete', '{}');
     def fake_fs(route):
         u = urlparse(route.request.url)
         path, q = u.path.lstrip("/"), dict(x.split("=", 1) for x in u.query.split("&"))
-        if path != "users/" + unquote(q["uid"]):
+        own = "users/" + unquote(q["uid"])
+        if path != own and not path.startswith(own + "/"):
             return route.fulfill(status=403, body="{}", headers=CORS)
         if q["op"] == "set":
             cloud[path] = json.loads(route.request.post_data)
@@ -428,6 +432,8 @@ export const deleteDoc = ref => call(ref.path, 'delete', '{}');
     check("帳號：Google 登入後右上角顯示名字", user_btn(A).endswith("測試玩家") and not A.locator("#login").is_visible(),
           user_btn(A))
     check("同步：登入前的紀錄會上傳到帳號", cloud_on() == [ids[0]], str(cloud_on()))
+    A.evaluate("()=>saveMaiCloud({v:1,at:5,name:'雲端玩家',rating:1,scores:[],new:null})")
+    check("B50：登入中成績會另存到帳號", "雲端玩家" in (cloud.get("users/g1/mai/b50") or {}).get("data", ""))
     B = device()
     B.evaluate("()=>toggleVisited(1)")
     B.locator("#sync-login").click()   # 制霸頁的登入按鈕
@@ -436,6 +442,9 @@ export const deleteDoc = ref => call(ref.path, 'delete', '{}');
     b_has = B.evaluate("()=>[...state.visited].sort()")
     check("同步：裝置 B 登入後兩台的紀錄合併", b_has == sorted(ids) and cloud_on() == sorted(ids),
           f"B={len(b_has)} 雲端={len(cloud_on())}")
+    B.wait_for_function("()=>localStorage.getItem('maimai:mai')")
+    check("B50：在別台裝置登入會拿到帳號裡的成績",
+          B.evaluate("()=>JSON.parse(localStorage.getItem('maimai:mai')).name") == "雲端玩家")
     A.evaluate("()=>toggleVisited(0)")   # A 取消第一間；登入中 1.5 秒後自動上傳
     A.wait_for_timeout(2500)
     check("同步：登入中修改會自動上傳（A 取消的那間雲端也取消）", ids[0] not in cloud_on(), str(cloud_on()))
@@ -473,7 +482,8 @@ export const deleteDoc = ref => call(ref.path, 'delete', '{}');
     B.locator("#me-out").click()
     B.wait_for_timeout(300)
     check("帳號：登出後回到「登入」、這台裝置的紀錄清空、雲端還在",
-          user_btn(B).endswith("登入") and B.evaluate("()=>state.visited.size") == 0 and cloud_on() == [ids[1]])
+          user_btn(B).endswith("登入") and B.evaluate("()=>state.visited.size") == 0 and cloud_on() == [ids[1]]
+          and not B.evaluate("()=>localStorage.getItem('maimai:mai')"))
     A.context.close()
     B.context.close()
 
@@ -505,6 +515,75 @@ export const deleteDoc = ref => call(ref.path, 'delete', '{}');
     C.wait_for_timeout(300)
     check("登入：密碼錯誤會提示", "密碼不對" in C.locator("#lg-err").inner_text(), C.locator("#lg-err").inner_text())
     C.context.close()
+
+    # ---------- 🎵 B50（假的 maimai DX NET，跑真的書籤工具） ----------
+    songs = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "songs.json"),
+                           encoding="utf-8"))
+    keys = Counter((s[0], s[1]) for s in songs["songs"])
+    ok = [s for s in songs["songs"] if s[4][3] and not s[5] & 8 and keys[(s[0], s[1])] == 1]
+    new_s = next(s for s in ok if s[2] in songs["new"])
+    old_s = [s for s in ok if s[2] not in songs["new"]][:2]
+    plays = [(old_s[0], 100.6, "ap"), (old_s[1], 99.2, ""), (new_s, 100.1, "fc")]
+
+    def ra(c, a, fc):
+        k = next(k for t, k in [(100.5, 22.4), (100, 21.6), (99.5, 21.1), (99, 20.8), (98, 20.3), (97, 20),
+                                (94, 16.8), (90, 15.2), (80, 13.6), (0, 12)] if a >= t)
+        return math.floor(c * k * min(a, 100.5) / 100) + (1 if fc.startswith("ap") else 0)
+    want = sum(ra(s[4][3], a, fc) for s, a, fc in plays)
+
+    def mai_html(rows):
+        out = ""
+        for s, a, fc in rows:
+            icons = "".join(f'<img src="https://maimaidx-eng.com/maimai-mobile/img/music_icon_{i}.png">'
+                            for i in [fc, "back"] if i)
+            score = f'<div class="music_score_block w_112">{a:.4f}%</div>' if a else ""
+            kind = "music_dx" if s[1] == "dx" else "music_standard"
+            out += (f'<div class="w_450 m_15 p_r f_0"><div class="music_master_score_back pointer">{icons}'
+                    f'<div class="music_name_block t_l">{html.escape(s[0])}</div>{score}</div>'
+                    f'<img src="https://maimaidx-eng.com/maimai-mobile/img/{kind}.png" class="music_kind_icon"></div>')
+        return out
+
+    def fake_mai(route):
+        u = urlparse(route.request.url)
+        q = dict(x.split("=", 1) for x in u.query.split("&") if "=" in x)
+        if u.path.endswith("/home/"):
+            body = '<div class="name_block">ＴＥＳＴＥＲ</div><div class="rating_block">12345</div>'
+        elif "musicGenre" in u.path:   # 只有 MASTER 有成績；另放一首沒打過的
+            body = mai_html(plays + [(ok[-1], 0, "")]) if q.get("diff") == "3" else ""
+        elif "musicVersion" in u.path:
+            body = (mai_html([(new_s, 0, "")]) if q.get("version") == "30" else "" if q else
+                    '<select name="version"><option value="29">A</option><option value="30">B</option></select>')
+        else:
+            body = ""
+        route.fulfill(body=f"<html><body>{body}</body></html>", content_type="text/html")
+
+    site = URL.rsplit("/", 1)[0]
+    bm_src = b.new_context().request.get(site + "/bookmarklet.js").text()
+    ctx = b.new_context(viewport={"width": 1100, "height": 900})
+    ctx.route("https://maimaidx-eng.com/**", fake_mai)
+    page = ctx.new_page()
+    page.goto(site + "/index.html#view=b50", wait_until="networkidle")
+    check("B50：還沒成績時顯示書籤工具教學", page.locator("#b50 .b50-guide[open]").is_visible()
+          and (page.locator("#b50 .b50-bm").get_attribute("href") or "").startswith("javascript:"))
+    page.add_script_tag(content=bm_src)
+    page.wait_for_timeout(300)
+    check("B50：在其他網站按書籤會提示要先開 maimai DX NET", "maimai DX NET" in page.inner_text("body"))
+    page.goto("https://maimaidx-eng.com/maimai-mobile/home/")
+    page.evaluate("s=>{window.OTOGO_SITE=s}", site)
+    page.once("dialog", lambda d: d.accept())   # 音GO 問要不要匯入
+    with page.expect_navigation(url=lambda u: u.startswith(site)):
+        page.add_script_tag(content=bm_src)
+    page.wait_for_selector("#b50 .b50-total")
+    total = page.locator("#b50 .b50-total b").inner_text()
+    check("B50：書籤工具讀完成績會帶回音GO", page.locator("#b50 .b50-name").inner_text() == "ＴＥＳＴＥＲ"
+          and "mai=" not in page.url, page.url[-40:])
+    check("B50：新曲、舊曲分開算（新曲以官網版本頁為準）", page.locator("#b50 .b50-row").count() == 3
+          and "1 首" in page.locator(".b50-h").first.inner_text())
+    check("B50：Rating 算法正確（含 AP +1）", total == str(want), f"{total} vs {want}")
+    page.reload(wait_until="networkidle")
+    page.wait_for_selector("#b50 .b50-total")
+    check("B50：重新整理後成績還在", page.locator("#b50 .b50-total b").inner_text() == str(want))
+    ctx.close()
 
     # ---------- 營業狀態（固定時鐘） ----------
     ctx = b.new_context(timezone_id="America/New_York")

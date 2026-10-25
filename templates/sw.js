@@ -8,6 +8,7 @@ const A = [
   './account.js',
   './conquest.js',
   './stats.js',
+  './b50.js',
   './app.js',
   './manifest.webmanifest',
   './icon.svg',

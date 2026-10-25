@@ -11,5 +11,14 @@ service cloud.firestore {
         && request.resource.data.visited is map
         && request.resource.data.favs is map;
     }
+    // 🎵 B50 成績（書籤工具匯入）：JSON 字串，上限約 900KB
+    match /users/{uid}/mai/{doc} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['at', 'data'])
+        && request.resource.data.at is number
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 900000;
+    }
   }
 }

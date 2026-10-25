@@ -123,8 +123,8 @@ print("音遊按鈕：", "、".join(f"{g}({cnt[g]})" for g in rhythm) or "（無
 print("其他遊戲（下拉）：", len(others), "款")
 
 # ---------------- 輸出 site/ ----------------
-STATIC = ["style.css", "account.js", "conquest.js", "stats.js", "app.js", "manifest.webmanifest", "icon.svg",
-          "privacy.html"]   # 原樣複製的前端檔案
+STATIC = ["style.css", "account.js", "conquest.js", "stats.js", "b50.js", "app.js", "manifest.webmanifest",
+          "icon.svg", "privacy.html", "bookmarklet.js"]   # 原樣複製的前端檔案
 
 
 def read_template(name):
@@ -155,6 +155,9 @@ os.makedirs(paths.SITE, exist_ok=True)
 write_text("index.html", html_out)
 for name in STATIC:
     write_text(name, read_template(name))
+SONGS = os.path.join(paths.DATA, "songs.json")   # 🎵 B50 用的定數（scripts/songs.py 產生）
+if os.path.exists(SONGS):
+    write_text("songs.json", open(SONGS, encoding="utf-8").read())
 
 # Service Worker 快取名稱 = 網站內容的雜湊：任何檔案改了就換新快取，不用再手動改版本號
 digest = hashlib.sha256("".join([html_out] + [read_template(n) for n in STATIC]).encode()).hexdigest()[:10]

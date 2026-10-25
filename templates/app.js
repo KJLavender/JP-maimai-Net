@@ -97,7 +97,7 @@ function readHash() {
   state.openOnly = h.get('open') === '1';
   state.lateOnly = h.get('late') === '1';
   state.pref = h.get('pref') || '';
-  state.view = ['list', 'map', 'conquest', 'stats'].includes(h.get('view'))
+  state.view = ['list', 'map', 'conquest', 'stats', 'b50'].includes(h.get('view'))
     ? h.get('view')
     : 'list';
   const at = (h.get('at') || '').split(',');
@@ -359,6 +359,7 @@ function renderStatusRow() {
     ['map', '地圖'],
     ['conquest', '🏆 制霸'],
     ['stats', '📊 統計'],
+    ['b50', '🎵 B50'],
   ]
     .map(([v, t]) => `<button data-v="${v}"${state.view === v ? ' data-on="1"' : ''}>${t}</button>`)
     .join('');
@@ -709,7 +710,7 @@ function render() {
   const listEl = document.getElementById('list'),
     mapEl = document.getElementById('map');
   // 制霸、統計是整頁的檢視，不吃上面的篩選
-  const pages = { conquest: renderConquest, stats: renderStats };
+  const pages = { conquest: renderConquest, stats: renderStats, b50: renderB50 };
   for (const v of Object.keys(pages))
     document.getElementById(v).style.display = state.view === v ? 'block' : 'none';
   document.getElementById('count').style.display = pages[state.view] ? 'none' : '';
