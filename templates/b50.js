@@ -1,48 +1,10 @@
-/* 🎵 B50：書籤工具從 maimai DX NET 帶回來的成績，配上 songs.json 的定數算 Rating（舊曲 B35＋新曲 B15）。
+/* 🏅 B50：成績配上 songs.json 的定數算 Rating（舊曲 B35＋新曲 B15），加上 📈 推分建議、📉 Rating 紀錄。
    成績存在這個瀏覽器（localStorage 'maimai:mai'）；登入時另存一份到帳號（account.js）。
-   這個檔案只定義函式，在 app.js 之前載入。 */
+   成績格式：{v:1, at, name, rating, scores:[[歌名, 'dx'|'std', 難度0-4, 達成率, fc, fs]], new:[歌名|種類]|null, hist:[[at, rating]]}
+   這個檔案只定義函式，在 mai.js 之後、app.js 之前載入。 */
 
 // 書籤工具把成績放在網址 #mai=…；app.js 一載入就會改寫網址，所以先在這裡記下來
 const MAI_IMPORT = new URLSearchParams(location.hash.slice(1)).get('mai');
-const DIFF_NAMES = ['BASIC', 'ADVANCED', 'EXPERT', 'MASTER', 'Re:MASTER'];
-const DIFF_COLORS = ['#22bb5b', '#fb9c2d', '#f64861', '#9e45e2', '#c88cf0'];
-const COVER = 'https://dp4p6x0xfi5o9.cloudfront.net/maimai/img/cover/';
-// [達成率門檻, 係數, 評級]（與 mai-bot 相同）
-const RANKS = [
-  [100.5, 22.4, 'SSS+'],
-  [100, 21.6, 'SSS'],
-  [99.5, 21.1, 'SS+'],
-  [99, 20.8, 'SS'],
-  [98, 20.3, 'S+'],
-  [97, 20, 'S'],
-  [94, 16.8, 'AAA'],
-  [90, 15.2, 'AA'],
-  [80, 13.6, 'A'],
-  [0, 12, 'B'],
-];
-const FC_LABEL = { fc: 'FC', fcp: 'FC+', ap: 'AP', app: 'AP+' };
-const mai = { songs: null, loading: null };
-
-const rankOf = ach => RANKS.find(r => ach >= r[0]);
-// ALL PERFECT 以上每首 +1
-const chartRating = (c, ach, fc) =>
-  Math.floor((c * rankOf(ach)[1] * Math.min(ach, 100.5)) / 100) + (/^ap/.test(fc) ? 1 : 0);
-
-function loadSongs() {
-  if (!mai.loading)
-    mai.loading = fetch('songs.json')
-      .then(r => r.json())
-      .then(d => {
-        const idx = new Map();
-        for (const s of d.songs) if (!idx.has(s[0] + '|' + s[1])) idx.set(s[0] + '|' + s[1], s);
-        return (mai.songs = { ...d, idx });
-      })
-      .catch(e => {
-        mai.loading = null;
-        throw e;
-      });
-  return mai.loading;
-}
 
 function computeB50(data, S) {
   const fresh = data.new ? new Set(data.new) : null,
@@ -57,6 +19,7 @@ function computeB50(data, S) {
       continue;
     }
     rows.push({
+      s,
       title,
       kind,
       diff,
@@ -80,19 +43,90 @@ function computeB50(data, S) {
       rows.filter(r => !r.isNew),
       35,
     );
-  return { b15, b35, new15: sum(b15), old35: sum(b35), total: sum(b15) + sum(b35), unknown };
+  return { rows, b15, b35, new15: sum(b15), old35: sum(b35), total: sum(b15) + sum(b35), unknown };
+}
+
+// 📈 推分建議（與 mai-bot /up 相同）：差一點就到下一個評級、而且推上去總 Rating 會漲的譜面
+function suggestions(r, limit = 10) {
+  const inB50 = new Set([...r.b15, ...r.b35]),
+    floor = {
+      true: r.b15.length === 15 ? r.b15[14].ra : 0,
+      false: r.b35.length === 35 ? r.b35[34].ra : 0,
+    },
+    picks = [];
+  for (const row of r.rows) {
+    let best = null;
+    for (const [t, k, name] of RANKS.filter(x => x[0] > row.ach).slice(-2)) {
+      const nr = rawRating(row.c, t, k) + (/^ap/.test(row.fc) ? 1 : 0),
+        gain = nr - (inB50.has(row) ? row.ra : floor[row.isNew]);
+      if (gain <= 0) continue;
+      const gap = t - row.ach,
+        score = gain / Math.max(gap, 0.05);
+      if (!best || score > best.score)
+        best = { row, t, name, gap, gain, score, in: inB50.has(row) };
+    }
+    if (best) picks.push(best);
+  }
+  return picks.sort((a, b) => b.score - a.score || b.gain - a.gain).slice(0, limit);
 }
 
 function b50RowHTML(r, i) {
   const rank = rankOf(r.ach)[2];
-  return `<div class="b50-row">
-    <span class="b50-no">${i + 1}</span>
-    <img class="b50-cover" loading="lazy" alt="" src="${r.img ? COVER + esc(r.img) : 'icon.svg'}">
+  return `<button class="b50-row mai-chart" data-k="${esc(r.title + '|' + r.kind)}" data-d="${r.diff}">
+    <span class="b50-no">${i + 1}</span>${coverImg(r.img)}
     <div class="b50-info"><div class="b50-title">${esc(r.title)}</div>
-      <div class="b50-meta"><span class="b50-diff" style="background:${DIFF_COLORS[r.diff]}">${DIFF_NAMES[r.diff]}</span>
-      ${r.kind === 'dx' ? 'DX' : 'STD'} · 定數 ${r.est ? '≈' : ''}${r.c.toFixed(1)}${r.fc ? ` · <b>${FC_LABEL[r.fc] || ''}</b>` : ''}</div></div>
+      <div class="b50-meta">${diffTag(r.diff)}
+      ${r.kind === 'dx' ? 'DX' : 'STD'} · 定數 ${constText(r.c, r.est)}${r.fc ? ` · <b>${FC_LABEL[r.fc] || ''}</b>` : ''}</div></div>
     <div class="b50-score"><b>${r.ach.toFixed(4)}%</b><small>${rank} · <b>${r.ra}</b></small></div>
-  </div>`;
+  </button>`;
+}
+function upRowHTML(p, i) {
+  const r = p.row;
+  return `<button class="b50-row mai-chart" data-k="${esc(r.title + '|' + r.kind)}" data-d="${r.diff}">
+    <span class="b50-no">${i + 1}</span>${coverImg(r.img)}
+    <div class="b50-info"><div class="b50-title">${esc(r.title)}</div>
+      <div class="b50-meta">${diffTag(r.diff)} ${r.kind === 'dx' ? 'DX' : 'STD'} · 定數 ${constText(r.c, r.est)} · ${p.in ? 'B50 內' : '推上去可進 B50'}</div></div>
+    <div class="b50-score"><b>${r.ach.toFixed(4)}% → ${p.name}</b><small>差 ${p.gap.toFixed(4)}% · <b>+${p.gain}</b></small></div>
+  </button>`;
+}
+
+function histSVG(h) {
+  const W = 600,
+    H = 180,
+    P = 24,
+    vs = h.map(x => x[1]),
+    lo = Math.min(...vs) - 10,
+    hi = Math.max(...vs) + 10,
+    xy = (v, i) => [
+      P + ((W - 2 * P) * i) / Math.max(h.length - 1, 1),
+      P + (H - 2 * P) * (1 - (v - lo) / (hi - lo)),
+    ];
+  const pts = vs
+    .map((v, i) =>
+      xy(v, i)
+        .map(n => n.toFixed(1))
+        .join(','),
+    )
+    .join(' ');
+  return `<svg class="mai-hist" viewBox="0 0 ${W} ${H}" role="img" aria-label="Rating 走勢">
+    <polyline points="${pts}" fill="none" stroke="var(--amber)" stroke-width="3" stroke-linejoin="round"/>
+    ${vs.map((v, i) => `<circle cx="${xy(v, i)[0]}" cy="${xy(v, i)[1]}" r="4" fill="var(--amber)"/>`).join('')}
+  </svg>`;
+}
+function histHTML(data) {
+  const h = (data.hist || []).filter(x => x[1]);
+  if (!h.length) return '<div class="empty">還沒有紀錄。每次更新成績都會記一筆官網 Rating。</div>';
+  const day = t => new Date(t).toLocaleDateString('zh-TW');
+  return `${h.length > 1 ? histSVG(h.slice(-30)) : ''}
+    <p class="cq-hint">共 ${h.length} 筆，從 ${h[0][1]} 到 ${h[h.length - 1][1]}（${h[h.length - 1][1] - h[0][1] >= 0 ? '+' : ''}${h[h.length - 1][1] - h[0][1]}）</p>
+    <div class="mai-log">${h
+      .slice(-10)
+      .reverse()
+      .map((x, i, a) => {
+        const d = a[i + 1] ? x[1] - a[i + 1][1] : 0;
+        return `<div><span>${esc(day(x[0]))}</span><b>${x[1]}</b><small>${d ? (d > 0 ? '+' : '') + d : ''}</small></div>`;
+      })
+      .join('')}</div>`;
 }
 
 const bookmarkletCode = () =>
@@ -127,39 +161,69 @@ function bindGuide(el) {
     };
 }
 
-function renderB50(el) {
+const B50_MODES = [
+  ['list', '🏅 B50'],
+  ['up', '📈 推分建議'],
+  ['log', '📉 Rating 紀錄'],
+];
+function renderB50(el, S) {
   const data = LS.get('mai', null);
   if (!data) {
     el.innerHTML = `<div class="b50-empty">還沒有成績。照下面的步驟從 maimai DX NET 匯入，就能看到你的 B50。</div>${guideHTML(true)}`;
     bindGuide(el);
     return;
   }
-  el.innerHTML = '<div class="empty">載入定數資料…</div>';
-  loadSongs()
-    .then(S => {
-      if (state.view !== 'b50') return;
-      const r = computeB50(data, S);
-      const when = new Date(data.at).toLocaleString('zh-TW', { hour12: false });
-      const diff = data.rating ? r.total - data.rating : 0;
-      el.innerHTML = `
-      <div class="b50-head">
-        <div><div class="b50-name">${esc(data.name)}</div><small>官網 Rating ${data.rating || '—'} · 更新於 ${esc(when)}</small></div>
-        <div class="b50-total"><b>${r.total}</b><small>舊曲 ${r.old35} ＋ 新曲 ${r.new15}</small></div>
-      </div>
-      ${
-        diff
-          ? `<p class="cq-hint">和官網差 ${diff > 0 ? '+' : ''}${diff}：標「≈」的譜面定數還沒公布，是用等級估的。</p>`
-          : ''
-      }
+  const mode = (mai.b50mode = mai.b50mode || 'list'),
+    r = computeB50(data, S),
+    when = new Date(data.at).toLocaleString('zh-TW', { hour12: false }),
+    diff = data.rating ? r.total - data.rating : 0;
+  let body;
+  if (mode === 'up') {
+    const ps = suggestions(r);
+    body = `<p class="cq-hint">差一點就到下一個評級、推上去總 Rating 會漲的譜面（漲幅／差距排序）。點譜面看各評級的 Rating。</p>
+      ${ps.length ? ps.map(upRowHTML).join('') : '<div class="empty">目前沒有推分建議</div>'}`;
+  } else if (mode === 'log') body = histHTML(data);
+  else
+    body = `${
+      diff
+        ? `<p class="cq-hint">和官網差 ${diff > 0 ? '+' : ''}${diff}：標「≈」的譜面定數還沒公布，是用等級估的。</p>`
+        : ''
+    }
       <h3 class="b50-h">新曲 B15 <small>${r.b15.length} 首</small></h3>${r.b15.map(b50RowHTML).join('')}
-      <h3 class="b50-h">舊曲 B35 <small>${r.b35.length} 首</small></h3>${r.b35.map(b50RowHTML).join('')}
-      ${guideHTML(false)}
-      <p class="cq-hint">定數資料：arcade-songs（更新 ${esc(S.updated)}）${
-        r.unknown.length ? ` · ${r.unknown.length} 個譜面找不到定數，沒有算進去` : ''
-      }</p>`;
-      bindGuide(el);
-    })
-    .catch(() => (el.innerHTML = '<div class="empty">定數資料載入失敗（需要網路）</div>'));
+      <h3 class="b50-h">舊曲 B35 <small>${r.b35.length} 首</small></h3>${r.b35.map(b50RowHTML).join('')}`;
+  el.innerHTML = `
+    <div class="b50-head">
+      <div><div class="b50-name">${esc(data.name)}</div><small>官網 Rating ${data.rating || '—'} · 更新於 ${esc(when)}</small></div>
+      <div class="b50-total"><b>${r.total}</b><small>舊曲 ${r.old35} ＋ 新曲 ${r.new15}</small></div>
+    </div>
+    <div class="chips mai-modes">${B50_MODES.map(
+      ([m, n]) =>
+        `<span class="chip rad" data-m="${m}" data-on="${m === mode ? 1 : 0}">${n}</span>`,
+    ).join('')}</div>
+    ${body}
+    ${guideHTML(false)}
+    <p class="cq-hint">定數資料：arcade-songs（更新 ${esc(S.updated)}）${
+      r.unknown.length ? ` · ${r.unknown.length} 個譜面找不到定數，沒有算進去` : ''
+    }</p>`;
+  el.querySelectorAll('.mai-modes .chip').forEach(
+    c =>
+      (c.onclick = () => {
+        mai.b50mode = c.dataset.m;
+        renderB50(el, S);
+      }),
+  );
+  bindCharts(el);
+  bindGuide(el);
+}
+
+// 存新成績：順便記一筆 Rating 紀錄（同一次更新不重複記）
+function saveMai(data) {
+  const old = LS.get('mai', null),
+    hist = (data.hist || (old && old.hist) || []).slice();
+  if (data.rating && !hist.some(x => x[0] === data.at)) hist.push([data.at, data.rating]);
+  data.hist = hist.sort((a, b) => a[0] - b[0]).slice(-200);
+  LS.set('mai', data);
+  saveMaiCloud(data);
 }
 
 async function gunzip64(s) {
@@ -185,10 +249,11 @@ addEventListener('DOMContentLoaded', async () => {
     )
   )
     return;
-  LS.set('mai', data);
-  saveMaiCloud(data);
+  delete data.hist; // 紀錄只認這台／帳號自己累積的，不吃網址帶來的
+  saveMai(data);
   toast(`已匯入 ${data.scores.length} 個成績`);
   state.view = 'b50';
+  mai.tab = 'b50';
   renderStatusRow();
   render();
 });

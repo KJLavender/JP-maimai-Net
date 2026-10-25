@@ -123,7 +123,7 @@ print("音遊按鈕：", "、".join(f"{g}({cnt[g]})" for g in rhythm) or "（無
 print("其他遊戲（下拉）：", len(others), "款")
 
 # ---------------- 輸出 site/ ----------------
-STATIC = ["style.css", "account.js", "conquest.js", "stats.js", "b50.js", "app.js", "manifest.webmanifest",
+STATIC = ["style.css", "account.js", "conquest.js", "stats.js", "mai.js", "b50.js", "app.js", "manifest.webmanifest",
           "icon.svg", "privacy.html", "bookmarklet.js"]   # 原樣複製的前端檔案
 
 

@@ -1409,6 +1409,189 @@ noscript {
   margin: 2px 0;
 }
 
+/* ---------- 🎵 maimai 工具 ---------- */
+.mai-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 14px;
+  background: var(--surface2);
+  border-radius: 12px;
+  overflow-x: auto;
+}
+.mai-tabs button {
+  flex: 1;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font: 700 0.86rem var(--f);
+  padding: 8px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mai-tabs button[data-on='1'] {
+  background: var(--surface);
+  color: var(--magenta);
+  box-shadow: var(--shadow);
+}
+.mai-modes,
+.mai-levels {
+  margin: 12px 0 4px;
+}
+button.b50-row {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+button.b50-row:hover {
+  border-color: var(--magenta);
+}
+.mai-input {
+  width: 100%;
+  font: 1rem var(--f);
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  margin-bottom: 12px;
+}
+.mai-input:focus {
+  border-color: var(--magenta);
+}
+.mai-song {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.mai-song .b50-cover {
+  width: 64px;
+  height: 64px;
+}
+.mai-sheets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+}
+.mai-kind {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--muted);
+  width: 2.6em;
+}
+.mai-sheet {
+  border: 0;
+  border-radius: 7px;
+  padding: 4px 8px;
+  background: var(--dc);
+  color: #fff;
+  font: 700 0.7rem var(--f);
+  cursor: pointer;
+}
+.mai-sheet b {
+  font-size: 0.82rem;
+}
+.mai-roll {
+  font-size: 1rem;
+  padding: 10px 24px;
+  border: 0;
+  cursor: pointer;
+}
+#mai-pick {
+  margin-top: 12px;
+}
+.mai-chart-head {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.mai-chart-head h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+.mai-cover-lg {
+  width: 84px;
+  height: 84px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex: none;
+}
+.mai-const {
+  margin-top: 6px;
+}
+.mai-const b {
+  font-size: 1.4rem;
+  color: var(--amber);
+}
+.mai-const small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.mai-mine {
+  font-size: 0.85rem;
+  margin: 6px 0;
+}
+.mai-rt {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.mai-rt th,
+.mai-rt td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.mai-rt th {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.mai-rt tr.on td {
+  background: rgba(229, 48, 126, 0.1);
+}
+.mai-up {
+  color: var(--green);
+  font-weight: 700;
+}
+.mai-hist {
+  width: 100%;
+  height: auto;
+  margin-top: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.mai-log div {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.86rem;
+}
+.mai-log span {
+  flex: 1;
+  color: var(--muted);
+}
+.mai-log small {
+  width: 3.5em;
+  text-align: right;
+  color: var(--green);
+  font-weight: 700;
+}
+
 /* ---------- 卡片陰影、手機底部導覽列 ---------- */
 .card,
 .stat,

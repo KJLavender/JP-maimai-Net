@@ -22,7 +22,8 @@
 - 🔗 **分享連結**：篩選條件存在網址裡，傳給朋友打開就是同樣的結果（只分享「搜尋此地」，不會分享你的 GPS 位置）
 - 🏆 **機廳制霸**：店家按「🏁 標記去過」，47 都道府縣方格地圖依達成比例上色，可匯出成圖片分享；紀錄存在你自己的瀏覽器；可以從右上角**登入**（Google 或 Email＋密碼）讓手機和電腦自動同步，或用「備份／還原」代碼搬過去
 - 📊 **統計**：各音遊設置店數的變化（每週更新多一個點）、各都道府縣機廳數排行，可切換遊戲、可看表格
-- 🎵 **maimai DX B50**：登入 maimai DX NET（國際版）後點一下書籤工具，讀取*你自己的*成績帶回來，配上定數算舊曲 B35＋新曲 B15。SEGA 帳密不經過本站；成績存在瀏覽器，登入時同步到帳號
+- 🎵 **maimai DX B50**：登入 maimai DX NET（國際版）後點一下書籤工具，讀取*你自己的*成績帶回來，配上定數算舊曲 B35＋新曲 B15。SEGA 帳密不經過本站；成績存在瀏覽器，登入時同步到帳號。另有 📈 推分建議（差一點就到下個評級、推上去會漲 Rating 的譜面）和 📉 Rating 紀錄
+- 🎵 **maimai 工具**（都是按鈕、不用打指令，mai-bot 的網頁版）：🔍 用歌名或羅馬拼音查歌、📋 依等級列定數表、🎲 依等級抽一首；點任何譜面看各評級（SSS+…AAA）能拿多少 Rating
 - 🗺️ **清單／地圖雙檢視**：叢集標記，綠＝營業中
 - 📱 **PWA**：可加到主畫面，離線也能看清單
 
@@ -52,6 +53,7 @@
 │   ├── style.css / app.js
 │   ├── conquest.js / stats.js   🏆 制霸、📊 統計
 │   ├── account.js / privacy.html   👤 登入與同步（Firebase）、隱私權說明
+│   ├── mai.js                      🎵 maimai 頁：子分頁、查歌、定數表、抽一首、各評級 Rating
 │   ├── b50.js / bookmarklet.js     🎵 B50 頁、在 maimai DX NET 上執行的書籤工具
 │   └── sw.js / manifest.webmanifest / icon.svg   PWA
 ├── site/                 產生出來的網站（不進 repo，Netlify 部署時產生）
@@ -67,7 +69,7 @@
 | `python scripts/build_site.py` | 讀 `data/arcades.csv` 與 `templates/`，產生 `site/`（店家資料內嵌在 `index.html`，另輸出 `data.json`）；Service Worker 的快取版本依內容自動計算 |
 | `python scripts/google_place_ids.py` | 用 Google Places API 找每間店的 Google place ID，讓「店家資訊」「導航」直接開到那間店（需 `.env` 內 `GOOGLE_MAPS_API_KEY`；只存 place ID，符合 Google 快取規定） |
 | `python scripts/google_hours.py` | 用 Google Place Details 補營業時間（含一週各天時段）：台灣全部＋日本官方沒登記的；不會超過每日配額與每月免費 1,000 次 |
-| `python scripts/songs.py` | 從 [arcade-songs](https://arcade-songs.zetaraku.dev) 下載定數、瘦身成 `data/songs.json`（約 240 KB）給 B50 頁用；新版本或定數公布時跑一次 |
+| `python scripts/songs.py` | 從 [arcade-songs](https://arcade-songs.zetaraku.dev) 下載定數、瘦身成 `data/songs.json`（約 270 KB，含 `pykakasi` 轉的羅馬拼音供搜尋）給 maimai 頁用；每週資料更新也會跑 |
 
 其他腳本（`scrape_*`、`coords_*`、`mgm_tw.py`）都會被 `update_data.py` 呼叫，也可以單獨執行除錯（加 `--test`）。所有腳本從哪個資料夾執行都可以。
 

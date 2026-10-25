@@ -712,7 +712,7 @@ function render() {
   const listEl = document.getElementById('list'),
     mapEl = document.getElementById('map');
   // 制霸、統計是整頁的檢視，不吃上面的篩選
-  const pages = { conquest: renderConquest, stats: renderStats, b50: renderB50 };
+  const pages = { conquest: renderConquest, stats: renderStats, b50: renderMai };
   for (const v of Object.keys(pages))
     document.getElementById(v).style.display = state.view === v ? 'block' : 'none';
   document.getElementById('count').style.display = pages[state.view] ? 'none' : '';

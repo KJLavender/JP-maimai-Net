@@ -2,7 +2,7 @@
 用法: python tests/test_site.py [url]       （預設 http://localhost:8765/index.html）
 環境變數: BROWSER_CHANNEL（預設 chrome；設成空字串用 Playwright 內建 Chromium）
           SCREENSHOT_DIR（手機截圖輸出位置，預設 tests/out）"""
-import json, os, sys, re, math, html
+import json, os, sys, re, html
 from collections import Counter
 from urllib.parse import urlparse, unquote
 from playwright.sync_api import sync_playwright
@@ -536,10 +536,11 @@ export const getDoc = async ref => { const d = await call(ref.path, 'get'); retu
     old_s = [s for s in ok if s[2] not in songs["new"]][:2]
     plays = [(old_s[0], 100.6, "ap"), (old_s[1], 99.2, ""), (new_s, 100.1, "fc")]
 
-    def ra(c, a, fc):
+    def ra(c, a, fc):   # 與 mai-bot chart_rating 相同的整數算法
         k = next(k for t, k in [(100.5, 22.4), (100, 21.6), (99.5, 21.1), (99, 20.8), (98, 20.3), (97, 20),
                                 (94, 16.8), (90, 15.2), (80, 13.6), (0, 12)] if a >= t)
-        return math.floor(c * k * min(a, 100.5) / 100) + (1 if fc.startswith("ap") else 0)
+        return (round(c * 10) * round(min(a, 100.5) * 10000) * round(k * 10)) // 10**8 \
+            + (1 if fc.startswith("ap") else 0)
     want = sum(ra(s[4][3], a, fc) for s, a, fc in plays)
 
     def mai_html(rows):
@@ -594,6 +595,48 @@ export const getDoc = async ref => { const d = await call(ref.path, 'get'); retu
     page.reload(wait_until="networkidle")
     page.wait_for_selector("#b50 .b50-total")
     check("B50：重新整理後成績還在", page.locator("#b50 .b50-total b").inner_text() == str(want))
+    check("B50：匯入時記一筆 Rating 紀錄",
+          page.evaluate("()=>JSON.parse(localStorage.getItem('maimai:mai')).hist.map(x=>x[1])") == [12345])
+
+    # ---------- 🎵 maimai 工具（按鈕） ----------
+    page.locator(".mai-modes .chip", has_text="推分建議").click()
+    up = page.locator("#b50 .b50-row")
+    check("推分：列出差一點就升級的譜面（AP 滿分的不列）", up.count() == 2, str(up.count()))
+    page.locator(".mai-modes .chip", has_text="Rating 紀錄").click()
+    check("Rating 紀錄：顯示官網 Rating", "12345" in page.locator(".mai-log").inner_text())
+    page.locator(".mai-modes .chip", has_text="B50").click()
+    page.locator("#b50 .b50-row").first.click()
+    dlg = page.locator("#chart[open]")
+    check("點 B50 的譜面：各評級 Rating＋自己的成績", dlg.is_visible() and "SSS+" in dlg.inner_text()
+          and "你的成績" in dlg.inner_text())
+    dlg.locator(".dlg-x").click()
+
+    page.locator(".mai-tabs button", has_text="查歌").click()
+    page.fill("#mai-q", "senbonzakura")
+    check("查歌：羅馬拼音找得到日文歌名", "千本桜" in page.locator("#mai-res").inner_text())
+    page.fill("#mai-q", "千本桜")
+    sk = next(s for s in songs["songs"] if s[0] == "千本桜" and s[1] == "dx")
+    page.locator(".mai-song").first.locator(".mai-sheet", has_text="MASTER").first.click()
+    sss = page.locator("#chart[open] .mai-rt tr", has_text="SSS+").inner_text()
+    check("查歌：點定數看各評級 Rating（SSS+ 正確）", str(ra(sk[4][3], 100.5, "")) in sss, sss)
+    page.locator("#chart .dlg-x").click()
+    page.reload(wait_until="networkidle")
+    page.wait_for_selector("#mai-q")
+    check("查歌：重新整理後停在同一個子分頁", page.locator(".mai-tabs [data-on='1']").inner_text() == "🔍 查歌")
+
+    page.locator(".mai-tabs button", has_text="定數表").click()
+    page.locator(".mai-levels .chip", has_text="14+").click()
+    want14 = sum(1 for s in songs["songs"] for c in s[4] if c is not None and 146 <= round(c * 10) < 150)
+    consts = page.locator("#b50 .b50-score b").all_inner_texts()
+    check("定數表：14+ 只列 14.6～14.9、由高到低", len(consts) == want14 and consts[0].endswith("14.9")
+          and consts[-1].endswith("14.6"), f"{len(consts)} vs {want14}")
+
+    page.locator(".mai-tabs button", has_text="抽一首").click()
+    page.locator(".mai-levels .chip", has_text="13+").click()   # 取消預設的 13+
+    page.locator(".mai-levels .chip", has_text="15").click()
+    page.locator("#mai-roll").click()
+    got = page.locator("#mai-pick .b50-score b").inner_text()
+    check("抽一首：抽到選的等級", got.lstrip("≈").startswith("15."), got)
     ctx.close()
 
     # ---------- 營業狀態（固定時鐘） ----------
