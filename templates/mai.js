@@ -5,7 +5,9 @@ const DIFF_NAMES = ['BASIC', 'ADVANCED', 'EXPERT', 'MASTER', 'Re:MASTER'];
 const DIFF_COLORS = ['#22bb5b', '#fb9c2d', '#f64861', '#9e45e2', '#c88cf0'];
 const UTAGE_COLOR = '#e5307e';
 const TYPE_NAMES = ['DX', 'STD', '宴'];
-const COVER = 'https://dp4p6x0xfi5o9.cloudfront.net/maimai/img/cover/';
+// 封面存在自己網站的 covers/（scripts/songs.py 下載）；剛上的新歌還沒下載時才用來源網址
+const COVER = 'covers/';
+const COVER_CDN = 'https://dp4p6x0xfi5o9.cloudfront.net/maimai/img/cover-m/';
 // [達成率門檻, 係數, 評級]（與 mai-bot 相同）
 const RANKS = [
   [100.5, 22.4, 'SSS+'],
@@ -137,7 +139,14 @@ const diffName = sh => (sh.t === 2 ? sh.d : DIFF_NAMES[sh.d]);
 const diffTag = diff =>
   `<span class="b50-diff" style="background:${DIFF_COLORS[diff]}">${DIFF_NAMES[diff]}</span>`;
 const coverImg = (img, cls = 'b50-cover') =>
-  `<img class="${cls}" loading="lazy" alt="" src="${img ? COVER + esc(img) : 'icon.svg'}">`;
+  img
+    ? `<img class="${cls}" loading="lazy" alt="" src="${COVER + esc(img)}" data-img="${esc(img)}" onerror="coverErr(this)">`
+    : `<img class="${cls}" alt="" src="icon.svg">`;
+function coverErr(el) {
+  el.onerror = el.dataset.cdn ? null : el.onerror;
+  el.src = el.dataset.cdn ? 'icon.svg' : COVER_CDN + el.dataset.img;
+  el.dataset.cdn = 1;
+}
 const constText = (c, est) => (est ? '≈' : '') + c.toFixed(1);
 const regionIdx = () => (mai.f && mai.f.region === 'jp' ? 0 : 1);
 function bindCharts(el) {

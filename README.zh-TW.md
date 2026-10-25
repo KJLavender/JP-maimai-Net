@@ -70,7 +70,7 @@
 | `python scripts/build_site.py` | 讀 `data/arcades.csv` 與 `templates/`，產生 `site/`（店家資料內嵌在 `index.html`，另輸出 `data.json`）；Service Worker 的快取版本依內容自動計算 |
 | `python scripts/google_place_ids.py` | 用 Google Places API 找每間店的 Google place ID，讓「店家資訊」「導航」直接開到那間店（需 `.env` 內 `GOOGLE_MAPS_API_KEY`；只存 place ID，符合 Google 快取規定） |
 | `python scripts/google_hours.py` | 用 Google Place Details 補營業時間（含一週各天時段）：台灣全部＋日本官方沒登記的；不會超過每日配額與每月免費 1,000 次 |
-| `python scripts/songs.py` | 下載 [arcade-songs](https://arcade-songs.zetaraku.dev) 資料集、瘦身成 `data/songs.json`（約 690 KB，壓縮後約 270 KB：每個譜面的等級、定數、譜師、物量、收錄地區與國際版差異，含 `pykakasi` 轉的羅馬拼音）給 maimai 頁用；每週資料更新也會跑 |
+| `python scripts/songs.py` | 下載 [arcade-songs](https://arcade-songs.zetaraku.dev) 資料集、瘦身成 `data/songs.json`（約 740 KB，壓縮後約 280 KB：每個譜面的等級、定數、譜師、物量、收錄地區與國際版差異、段位／友人對戰課題曲，含 `pykakasi` 轉的羅馬拼音），封面小圖存到 `data/covers/`（約 15 MB，只下載新的）。全部進 repo、從本站提供，來源關了 maimai 頁也照常能用；來源連不上或歌曲明顯變少時沿用現有檔案。每週資料更新也會跑 |
 
 其他腳本（`scrape_*`、`coords_*`、`mgm_tw.py`）都會被 `update_data.py` 呼叫，也可以單獨執行除錯（加 `--test`）。所有腳本從哪個資料夾執行都可以。
 

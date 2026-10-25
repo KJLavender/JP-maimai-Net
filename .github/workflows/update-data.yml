@@ -45,7 +45,7 @@ jobs:
       - name: Anything changed?
         id: diff
         run: |
-          if git diff --quiet -- data/arcades.csv data/mgm_cache.csv data/songs.json; then
+          if git diff --quiet -- data/arcades.csv data/mgm_cache.csv data/songs.json && [ -z "$(git status --porcelain data/covers)" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"; echo "資料沒有變動"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"

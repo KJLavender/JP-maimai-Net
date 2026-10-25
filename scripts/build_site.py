@@ -6,7 +6,7 @@
 #       記住偏好(localStorage)、清單/地圖雙檢視、資料更新日。
 # 用法：python scripts/build_site.py
 import paths
-import csv, os, re, json, datetime, hashlib
+import csv, os, re, json, datetime, hashlib, shutil
 from collections import Counter
 from urllib.parse import quote
 from tw_brands import brand_zh, MANUAL
@@ -161,9 +161,12 @@ for n, h in ver.items():
 write_text("index.html", html_out)
 for name in STATIC:
     write_text(name, read_template(name))
-SONGS = os.path.join(paths.DATA, "songs.json")   # 🎵 B50 用的定數（scripts/songs.py 產生）
+SONGS = os.path.join(paths.DATA, "songs.json")   # 🎵 maimai 頁的曲庫（scripts/songs.py 產生）
 if os.path.exists(SONGS):
     write_text("songs.json", open(SONGS, encoding="utf-8").read())
+COVERS = os.path.join(paths.DATA, "covers")      # 封面存在自己這邊，來源關了也還在
+if os.path.isdir(COVERS):
+    shutil.copytree(COVERS, os.path.join(paths.SITE, "covers"), dirs_exist_ok=True)
 
 # Service Worker 快取名稱 = 網站內容的雜湊：任何檔案改了就換新快取，不用再手動改版本號
 digest = hashlib.sha256("".join([html_out] + [read_template(n) for n in STATIC]).encode()).hexdigest()[:10]
