@@ -761,7 +761,16 @@ export const serverTimestamp = () => Date.now();
     page.locator("#draw [data-n='draw'][data-v='3']").click()
     got = nums("#draw-res .b50-score b")
     check("抽歌：從篩選結果抽 3 首", len(got) == 3 and all(14.6 <= c <= 14.9 for c in got), str(got))
+    page.locator("#draw [data-dd='diffs'][data-v='3']").click()
+    diffs_txt = page.locator("#draw-res .b50-diff").all_inner_texts()
+    check("抽歌：在抽歌視窗直接選難度", bool(diffs_txt) and all(t == "MASTER" for t in diffs_txt), str(diffs_txt))
+    page.locator("#draw [data-dd='diffs'][data-v='3']").click()
+    page.select_option("#draw-lvmin", "14")
     page.locator("#draw .dlg-x").click()
+    page.wait_for_timeout(300)   # 視窗的 close 事件之後才重畫曲庫
+    check("抽歌：視窗裡改的等級會同步到篩選", page.locator('select[data-f="lvMin"]').input_value() == "14",
+          page.locator('select[data-f="lvMin"]').input_value())
+    page.select_option('select[data-f="lvMin"]', "14+")
     page.reload(wait_until="networkidle")
     page.wait_for_selector("#mai-res .mai-lrow")
     check("曲庫：重新整理後分頁與篩選都還在", page.locator(".mai-tabs [data-on='1']").inner_text() == "📚 曲庫"
