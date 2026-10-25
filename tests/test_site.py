@@ -698,6 +698,9 @@ export const serverTimestamp = () => Date.now();
     check("曲庫：預設列出國際版全部譜面", shown_count() == count_where(), f"{shown_count()} vs {count_where()}")
     check("maimai 頁：不顯示找店的搜尋與篩選", not page.locator("#q").is_visible()
           and not page.locator("#gamerow").is_visible())
+    page.wait_for_function("()=>{const i=document.querySelector('#mai-res .b50-cover');return i&&i.complete}")
+    cover = page.evaluate("()=>{const i=document.querySelector('#mai-res .b50-cover');return [i.getAttribute('src'),i.naturalWidth]}")
+    check("曲庫：封面從本站讀（來源關了也還在）", cover[0].startswith("covers/") and cover[1] > 0, str(cover))
     # 找一首國際版有 DX MASTER、歌名是日文的歌，用羅馬拼音搜
     si, mi = next((i, j) for i, s in enumerate(songs["songs"]) if re.search(r"[\u3040-\u30ff\u4e00-\u9fff]", s[0])
                   and len(s[7]) >= 8 for j, sh in enumerate(s[10]) if sh[0] == 0 and sh[1] == 3 and sh[7] & 2)

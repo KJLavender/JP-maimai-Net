@@ -10,6 +10,8 @@
   羅馬拼音已正規化（與 mai-bot 相同、和 mai.js 的 normRomaji 一致），給搜尋用拼音找日文歌名。
   "dan": [[版本, "jp"|"intl", "dan"|"friend", [[標題, 說明, [[歌曲索引, 譜面索引, 備註]…]]…]]]
     段位認定／オトモダチ対戦的課題曲（來源 arcade-songs gallery.yaml）；對不到的譜面是 [-1, "歌名|類型|難度", 備註]
+封面小圖存在 data/covers/（約 15 MB，只下載新的），網站從自己的網域讀。
+來源連不上或資料明顯少了一大截時，沿用現有的 data/songs.json，不會把網站弄壞。
 用法：pip install pykakasi pyyaml && python scripts/songs.py
 """
 import paths
@@ -35,7 +37,9 @@ def romaji(title):
 
 URL = "https://dp4p6x0xfi5o9.cloudfront.net/maimai/data.json"
 GALLERY = "https://dp4p6x0xfi5o9.cloudfront.net/maimai/gallery.yaml"
+COVER_URL = "https://dp4p6x0xfi5o9.cloudfront.net/maimai/img/cover-m/"
 OUT = os.path.join(paths.DATA, "songs.json")
+COVERS = os.path.join(paths.DATA, "covers")
 DIFFS = ["basic", "advanced", "expert", "master", "remaster"]
 TYPES = ["dx", "std", "utage"]
 REGIONS = ["jp", "intl", "usa", "cn"]
@@ -66,8 +70,43 @@ def dan_courses(d):
     return out
 
 
+def sync_covers(names):
+    """只下載還沒有的封面；失敗的下次再試（網站會先用來源網址頂著）"""
+    os.makedirs(COVERS, exist_ok=True)
+    have = set(os.listdir(COVERS))
+    got = fail = 0
+    for n in sorted(names - have):
+        if not re.fullmatch(r"[0-9A-Za-z_-]+\.(png|jpe?g|webp)", n):
+            continue
+        try:
+            r = requests.get(COVER_URL + n, timeout=30)
+            r.raise_for_status()
+        except requests.RequestException:
+            fail += 1
+            continue
+        with open(os.path.join(COVERS, n), "wb") as f:
+            f.write(r.content)
+        got += 1
+    print(f"封面：新增 {got} 張、失敗 {fail} 張，共 {len(os.listdir(COVERS))} 張 → data/covers/")
+
+
+def load_old():
+    try:
+        with open(OUT, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
 def main():
-    d = requests.get(URL, timeout=60).json()
+    old = load_old()
+    try:
+        d = requests.get(URL, timeout=60).json()
+        if not d.get("songs"):
+            raise ValueError("沒有歌曲")
+    except (requests.RequestException, ValueError) as e:
+        print(f"⚠️ 抓不到 arcade-songs（{e}），沿用現有的 data/songs.json")
+        return
     cats = [c["category"] for c in d["categories"]]
     vers = [[v["version"], v["abbr"], v["releaseDate"]] for v in d["versions"]]
     vidx = {v[0]: i for i, v in enumerate(vers)}
@@ -113,7 +152,15 @@ def main():
         ])
     # 新曲枠＝國際版最新的兩個版本；書籤工具讀得到官網新曲清單時以官網為準
     new = [vers[i][0] for i in sorted(intl_vers)][-2:]
-    dan = dan_courses(d)
+    # 來源壞掉只回傳一部分時不要蓋掉好的資料
+    if old and len(songs) < len(old["songs"]) * 0.9:
+        print(f"⚠️ 這次只有 {len(songs)} 首（原本 {len(old['songs'])} 首），沿用現有的 data/songs.json")
+        return
+    try:
+        dan = dan_courses(d)
+    except Exception as e:
+        dan = (old or {}).get("dan", [])
+        print(f"⚠️ 段位資料抓不到（{e}），沿用舊的")
     out = {"updated": d.get("updateTime", "")[:10], "new": new, "cats": cats, "vers": vers, "des": des,
            "songs": songs, "dan": dan}
     with open(OUT, "w", encoding="utf-8", newline="\n") as f:
@@ -122,6 +169,7 @@ def main():
     miss = sum(1 for c in dan for sec in c[3] for x in sec[2] if x[0] < 0)
     print(f"{len(songs)} 首、{n_sheets} 個譜面；新曲版本 {new}；段位／友人對戰 {len(dan)} 組"
           f"（{miss} 個譜面對不到）；{os.path.getsize(OUT) // 1024} KB → data/songs.json")
+    sync_covers({s[6] for s in songs if s[6]})
 
 
 if __name__ == "__main__":
