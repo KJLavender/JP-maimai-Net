@@ -323,6 +323,17 @@ with sync_playwright() as p:
     page.locator("#st-table").click()
     page.evaluate("()=>{localStorage.removeItem('maimai:visited');location.hash=''}")
 
+    bg = lambda: page.evaluate("()=>getComputedStyle(document.body).backgroundColor")
+    light = bg()
+    page.locator("#themebtn").click()
+    dark = bg()
+    page.reload(wait_until="networkidle")
+    check("外觀：預設淺色，可切換深色並記住", light == "rgb(244, 245, 250)" and dark != light and bg() == dark,
+          f"{light} → {dark}")
+    page.locator("#themebtn").click()
+    check("外觀：CSS／JS 網址帶版本號（新版上線不會拿到舊檔）",
+          page.evaluate("()=>{const a=[...document.querySelectorAll('link[href^=\"style.css\"],script[src^=\"app.js\"]')];"
+                        "return a.length===2&&a.every(e=>/\\?v=\\w{8}$/.test(e.href||e.src))}"))
     check("沒有 JS 錯誤", not errors, "; ".join(errors)[:200])
     ctx.close()
 
@@ -614,6 +625,8 @@ export const getDoc = async ref => { const d = await call(ref.path, 'get'); retu
     page.goto(URL, wait_until="networkidle")
     w = page.evaluate("()=>[innerWidth,document.documentElement.scrollWidth]")
     check("手機 375px：沒有橫向溢出（清單）", w[1] <= w[0], f"{w}")
+    nav = page.locator("#tabs").bounding_box()
+    check("手機：分頁切換在畫面底部", nav and abs(nav["y"] + nav["height"] - 740) < 2 and nav["width"] >= 374, str(nav))
     page.screenshot(path=os.path.join(SHOTS, "mobile_list.png"))
     page.locator(".viewtoggle button", has_text="地圖").click()
     page.wait_for_selector(".mc", timeout=15000)

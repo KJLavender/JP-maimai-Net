@@ -6,7 +6,14 @@
     <title>音GO · 找機廳</title>
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
-    <meta name="theme-color" content="#0d0b1a" />
+    <meta name="theme-color" content="#f4f5fa" />
+    <script>
+      // 先套用上次選的深淺色，避免載入時閃一下
+      try {
+        var t = JSON.parse(localStorage.getItem('maimai:theme'));
+        if (t) document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
     <link rel="apple-touch-icon" href="icon.svg" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link
@@ -21,7 +28,10 @@
         <div class="trow">
           <h1 class="title">音<b>GO</b></h1>
           <span class="eyebrow">找機廳</span>
-          <button id="userbtn" class="userbtn" hidden></button>
+          <div class="tright">
+            <button id="themebtn" class="iconbtn" aria-label="切換深淺色"></button>
+            <button id="userbtn" class="userbtn" hidden></button>
+          </div>
         </div>
         <div class="sub">__TOTAL__ 間 · 營業狀態依當地時間計算</div>
         <div class="qrow">
@@ -43,6 +53,7 @@
             <span class="flabel">篩選</span><span class="chips" id="statusrow"></span>
           </div>
         </div>
+        <nav id="tabs" class="viewtoggle" aria-label="切換畫面"></nav>
       </div>
     </header>
     <div class="wrap">

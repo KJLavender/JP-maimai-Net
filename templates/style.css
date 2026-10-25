@@ -1,16 +1,57 @@
 :root {
-  --bg: #0d0b1a;
-  --surface: #171334;
-  --surface2: #221c47;
-  --line: #2e2760;
-  --text: #eceaff;
-  --muted: #9d96c9;
-  --cyan: #26e0e6;
-  --magenta: #ff3d9a;
-  --green: #39d98a;
-  --amber: #ffb454;
-  --closed: #6b6690;
+  --bg: #f4f5fa;
+  --surface: #ffffff;
+  --surface2: #eef0f7;
+  --line: #dfe2ee;
+  --text: #1c1b2b;
+  --muted: #646a82;
+  --cyan: #0b8ea3;
+  --magenta: #e5307e;
+  --green: #13895a;
+  --amber: #b36500;
+  --closed: #8a8fa6;
+  --hdr: rgba(255, 255, 255, 0.92);
+  --shadow: 0 1px 3px rgba(28, 27, 43, 0.06), 0 6px 16px rgba(28, 27, 43, 0.06);
+  --tint: rgba(28, 27, 43, 0.03);
   --f: system-ui, 'Hiragino Sans', 'Noto Sans CJK JP', 'Yu Gothic UI', 'Meiryo', sans-serif;
+  color-scheme: light;
+}
+/* 深色：手動切換，或沒選過且系統是深色 */
+:root[data-theme='dark'] {
+  --bg: #141230;
+  --surface: #1d1942;
+  --surface2: #282256;
+  --line: #3a3274;
+  --text: #f1efff;
+  --muted: #b2abdc;
+  --cyan: #2ee3e9;
+  --magenta: #ff4fa4;
+  --green: #3fdd90;
+  --amber: #ffb85e;
+  --closed: #827dab;
+  --hdr: rgba(20, 18, 48, 0.92);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --tint: rgba(255, 255, 255, 0.03);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #141230;
+    --surface: #1d1942;
+    --surface2: #282256;
+    --line: #3a3274;
+    --text: #f1efff;
+    --muted: #b2abdc;
+    --cyan: #2ee3e9;
+    --magenta: #ff4fa4;
+    --green: #3fdd90;
+    --amber: #ffb85e;
+    --closed: #827dab;
+    --hdr: rgba(20, 18, 48, 0.92);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --tint: rgba(255, 255, 255, 0.03);
+    color-scheme: dark;
+  }
 }
 * {
   box-sizing: border-box;
@@ -42,10 +83,10 @@ header {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(13, 11, 26, 0.9);
+  background: var(--hdr);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
-  padding: 11px 14px 9px;
+  padding: 12px 16px 10px;
 }
 .hbar {
   max-width: 760px;
@@ -53,19 +94,35 @@ header {
 }
 .trow {
   display: flex;
-  align-items: baseline;
-  gap: 9px;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
 }
+.tright {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.iconbtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 1rem;
+  cursor: pointer;
+  flex: none;
+}
 .eyebrow {
-  font-size: 0.64rem;
-  letter-spacing: 0.3em;
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
   color: var(--cyan);
   font-weight: 700;
-  text-transform: uppercase;
 }
 .title {
-  font-size: 1.3rem;
+  font-size: 1.6rem;
   font-weight: 800;
   letter-spacing: -0.01em;
   margin: 0;
@@ -74,9 +131,9 @@ header {
   color: var(--magenta);
 }
 .sub {
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   color: var(--muted);
-  margin: 1px 0 8px;
+  margin: 2px 0 10px;
 }
 .qrow {
   display: flex;
@@ -131,17 +188,15 @@ header {
   padding: 4px 0;
 }
 .frow + .frow {
-  border-top: 1px solid rgba(46, 39, 96, 0.55);
+  border-top: 1px solid var(--line);
 }
 .flabel {
   flex: none;
-  width: 34px;
-  font-size: 0.6rem;
-  letter-spacing: 0.14em;
+  width: 40px;
+  font-size: 0.74rem;
   color: var(--muted);
-  text-transform: uppercase;
   font-weight: 700;
-  padding-top: 8px;
+  padding-top: 7px;
 }
 .chips {
   display: flex;
@@ -152,12 +207,12 @@ header {
   min-width: 0;
 }
 .chip {
-  font-size: 0.77rem;
-  padding: 5px 11px;
+  font-size: 0.84rem;
+  padding: 6px 13px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--surface);
-  color: var(--muted);
+  color: var(--text);
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
@@ -173,12 +228,13 @@ header {
 .chip.g {
   border-color: var(--gc, #2e2760);
 }
+/* 開啟中的篩選：亮色底＋深色字，深淺主題共用 */
 .chip.tgl[data-on='1'] {
-  background: var(--green);
+  background: #39d98a;
   color: #062b1c;
 }
 .chip.late[data-on='1'] {
-  background: var(--amber);
+  background: #ffb454;
   color: #3a2600;
 }
 .chip.fav[data-on='1'] {
@@ -186,7 +242,7 @@ header {
   color: #3a2e00;
 }
 .chip.rad[data-on='1'] {
-  background: var(--cyan);
+  background: #26e0e6;
   color: #04222a;
 }
 .chip.loc {
@@ -223,35 +279,44 @@ header {
   line-height: 1;
 }
 select {
-  font-size: 0.77rem;
-  padding: 5px 9px;
+  font-size: 0.84rem;
+  padding: 6px 10px;
   border-radius: 999px;
   background: var(--surface);
-  color: var(--muted);
+  color: var(--text);
   border: 1px solid var(--line);
   outline: none;
-  max-width: 150px;
+  max-width: 160px;
 }
 .viewtoggle {
-  display: inline-flex;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  overflow: hidden;
-  margin-left: auto;
-  flex: none;
+  display: flex;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 4px;
+  background: var(--surface2);
+  border-radius: 12px;
 }
 .viewtoggle button {
-  background: var(--surface);
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
   color: var(--muted);
-  border: none;
-  font-size: 0.77rem;
-  padding: 5px 10px;
+  font: 700 0.9rem var(--f);
+  padding: 8px 6px;
   cursor: pointer;
 }
 .viewtoggle button[data-on='1'] {
-  background: var(--magenta);
-  color: #fff;
-  font-weight: 700;
+  background: var(--surface);
+  color: var(--magenta);
+  box-shadow: var(--shadow);
+}
+.viewtoggle .ti {
+  font-size: 1.05rem;
 }
 .count {
   font-size: 0.72rem;
@@ -269,7 +334,7 @@ select {
   overflow: hidden;
   margin-top: 12px;
   border: 1px solid var(--line);
-  background: #0d0b1a;
+  background: var(--bg);
 }
 .prefhead {
   font-size: 0.82rem;
@@ -389,7 +454,7 @@ select {
   border: 1px solid var(--line);
   border-radius: 9px;
   padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--tint);
 }
 .mach summary {
   cursor: pointer;
@@ -602,7 +667,7 @@ body.has-route #toast {
   border-color: var(--line);
 }
 .leaflet-control-attribution {
-  background: rgba(13, 11, 26, 0.75) !important;
+  background: var(--hdr) !important;
   color: var(--muted);
 }
 .leaflet-control-attribution a {
@@ -622,7 +687,7 @@ body.has-route #toast {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 .mc.has-open {
-  background: var(--green);
+  background: #39d98a;
   color: #062b1c;
 }
 .legend {
@@ -640,11 +705,11 @@ body.has-route #toast {
 }
 @media (max-width: 430px) {
   .flabel {
-    width: 28px;
-    font-size: 0.55rem;
+    width: 32px;
+    font-size: 0.68rem;
   }
   .title {
-    font-size: 1.18rem;
+    font-size: 1.4rem;
   }
 }
 noscript {
@@ -937,7 +1002,7 @@ noscript {
   margin: 8px 0;
 }
 .chip.stg[data-on='1'] {
-  background: var(--cyan);
+  background: #26e0e6;
   color: #04222a;
 }
 #st-more {
@@ -971,12 +1036,11 @@ noscript {
   cursor: pointer;
 }
 .userbtn {
-  margin-left: auto;
   align-self: center;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  max-width: 45%;
+  max-width: 14em;
   padding: 5px 12px;
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -1045,7 +1109,7 @@ noscript {
 .gbtn {
   width: 100%;
   padding: 11px;
-  border: 0;
+  border: 1px solid var(--line);
   border-radius: 10px;
   background: #fff;
   color: #1f1f1f;
@@ -1343,4 +1407,66 @@ noscript {
   border: 0;
   cursor: pointer;
   margin: 2px 0;
+}
+
+/* ---------- 卡片陰影、手機底部導覽列 ---------- */
+.card,
+.stat,
+.chart,
+.sync,
+#toast,
+#routebar {
+  box-shadow: var(--shadow);
+}
+.card {
+  border-color: transparent;
+}
+:root[data-theme='dark'] .card {
+  border-color: var(--line);
+}
+@media (max-width: 640px) {
+  /* backdrop-filter 會讓裡面 position:fixed 的導覽列定位在 header 裡，手機版改用實色底；
+     篩選列在手機上很高，不黏在上方（分頁已經在底部導覽列） */
+  header {
+    position: static;
+    backdrop-filter: none;
+    background: var(--surface);
+  }
+  .viewtoggle {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1600;
+    margin: 0;
+    gap: 0;
+    border-radius: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+  }
+  .viewtoggle button {
+    flex-direction: column;
+    gap: 1px;
+    font-size: 0.7rem;
+    padding: 5px 2px;
+  }
+  .viewtoggle button[data-on='1'] {
+    background: transparent;
+    box-shadow: none;
+  }
+  .viewtoggle .ti {
+    font-size: 1.3rem;
+  }
+  .wrap,
+  body.has-route .wrap {
+    padding-bottom: 150px;
+  }
+  #routebar {
+    bottom: calc(58px + env(safe-area-inset-bottom));
+  }
+  #toast,
+  body.has-route #toast {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+  }
 }

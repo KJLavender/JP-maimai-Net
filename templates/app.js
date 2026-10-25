@@ -352,16 +352,19 @@ function renderStatusRow() {
   });
   clr.id = 'clearf';
   row.appendChild(clr);
-  const vt = document.createElement('div');
-  vt.className = 'viewtoggle';
+  // 分頁切換：電腦在標題列下方，手機是畫面底部的導覽列（CSS 處理）
+  const vt = document.getElementById('tabs');
   vt.innerHTML = [
-    ['list', '清單'],
-    ['map', '地圖'],
-    ['conquest', '🏆 制霸'],
-    ['stats', '📊 統計'],
-    ['b50', '🎵 B50'],
+    ['list', '📋', '清單'],
+    ['map', '🗺️', '地圖'],
+    ['conquest', '🏆', '制霸'],
+    ['stats', '📊', '統計'],
+    ['b50', '🎵', 'maimai'],
   ]
-    .map(([v, t]) => `<button data-v="${v}"${state.view === v ? ' data-on="1"' : ''}>${t}</button>`)
+    .map(
+      ([v, i, t]) =>
+        `<button data-v="${v}"${state.view === v ? ' data-on="1"' : ''}><span class="ti">${i}</span><span>${t}</span></button>`,
+    )
     .join('');
   vt.querySelectorAll('button').forEach(
     b =>
@@ -372,7 +375,6 @@ function renderStatusRow() {
       }),
   );
   row.appendChild(chip('share', '🔗 分享', false, () => shareView()));
-  row.appendChild(vt);
 }
 function renderAllRows() {
   renderGameRow();
@@ -785,3 +787,19 @@ addEventListener('resize', () => {
 });
 if ('serviceWorker' in navigator && location.protocol === 'https:')
   navigator.serviceWorker.register('sw.js').catch(() => {});
+
+/* 🌓 深淺色：預設跟系統，按過切換就記住 */
+const darkMQ = matchMedia('(prefers-color-scheme: dark)');
+function applyTheme() {
+  const t = LS.get('theme', null),
+    dark = t ? t === 'dark' : darkMQ.matches;
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.getElementById('themebtn').textContent = dark ? '☀️' : '🌙';
+  document.querySelector('meta[name="theme-color"]').content = dark ? '#141230' : '#f4f5fa';
+}
+document.getElementById('themebtn').onclick = () => {
+  LS.set('theme', document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+  applyTheme();
+};
+darkMQ.addEventListener('change', applyTheme);
+applyTheme();
