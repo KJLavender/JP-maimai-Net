@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>隱私權說明 · 全日本音遊機廳</title>
+    <title>隱私權說明 · 音GO · 找機廳</title>
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <style>
       body {
@@ -41,44 +41,51 @@
   </head>
   <body>
     <main>
-      <p><a href="./">← 回到全日本音遊機廳</a></p>
+      <p><a href="./">← 回到音GO</a></p>
       <h1>隱私權說明</h1>
-      <p class="muted">最後更新：2026-10-24</p>
+      <p class="muted">最後更新：2026-10-25</p>
 
-      <h2>我們不收集你的資料</h2>
+      <h2>不登入：資料只在你的瀏覽器</h2>
       <p>
-        這個網站沒有帳號系統、沒有自己的伺服器，也不使用分析或廣告追蹤。你標記的「去過」「收藏」、篩選條件等，
-        只存在你自己瀏覽器的 localStorage 裡。
+        不登入也能使用全部功能。這時你標記的「去過」「收藏」、篩選條件等，只存在你自己瀏覽器的
+        localStorage 裡，不會傳到任何地方，網站也不會連到登入服務。我們不使用分析或廣告追蹤。
       </p>
 
-      <h2>Google 同步（選用）</h2>
-      <p>如果你按了「用 Google 帳號同步」：</p>
+      <h2>登入帳號（選用）</h2>
+      <p>登入的目的只有一個：讓「去過」和「收藏」在你的手機、電腦之間同步。</p>
       <ul>
+        <li>帳號與資料庫使用 Google 的 Firebase（Firebase Authentication 與 Cloud Firestore）。</li>
         <li>
-          網站只會請求 <code>drive.appdata</code>
-          權限：只能讀寫網站自己在你 Google
-          雲端硬碟裡建立的一個隱藏檔案（<code>maimai-sync.json</code>），
-          <b>看不到、也不能修改你雲端硬碟裡的任何其他檔案</b>。
+          <b>我們保存的資料</b>：登入用的 Email、暱稱（Google 登入時是 Google
+          帳號的名稱與大頭貼網址）、 帳號建立與最後登入時間（由 Firebase
+          自動記錄），以及你標記為「去過」「收藏」的機廳 ID 與標記時間。
         </li>
-        <li>這個檔案只包含你標記為「去過」和「收藏」的機廳 ID 與標記時間。</li>
-        <li>同步時，你的瀏覽器直接和 Google 連線；資料不會經過我們，我們也看不到。</li>
-        <li>Google 給的存取權杖只放在瀏覽器記憶體裡，關掉分頁或約一小時後就失效。</li>
         <li>
-          按「停止同步」後這台裝置就不再同步（登入中的話也會一併撤銷授權）。要完全撤銷授權或刪除雲端上的檔案，
-          可到 Google 雲端硬碟 → 設定 →
-          管理應用程式，找到「全日本音遊機廳」選擇「刪除隱藏的應用程式資料」與「中斷與雲端硬碟的連結」。
+          <b>不保存</b>：你的位置、搜尋內容、篩選條件。用 Email 註冊時，密碼由 Firebase
+          加密保存，我們看不到。用 Google 登入時，網站只取得基本資料（名稱、Email、大頭貼），
+          看不到你的 Gmail、雲端硬碟等其他資料。
+        </li>
+        <li>
+          資料只用來同步你的紀錄，不會出售、不會分享給第三方，也不會用來寄廣告。資料庫設定成每個人只能讀寫自己的紀錄。
+        </li>
+        <li>網站維護者在 Firebase 管理介面可以看到帳號的 Email 和紀錄，只會在處理問題時查看。</li>
+        <li>
+          <b>登出</b>：紀錄保留在帳號裡，這台裝置上的紀錄會清空。<b>刪除帳號</b>：點右上角名字 →
+          「刪除帳號」，帳號和雲端紀錄會立即刪除。
         </li>
       </ul>
 
       <h2>第三方服務</h2>
       <p>
         地圖使用 OpenStreetMap 與 OpenRailwayMap 的圖磚、「搜尋此地」使用 OpenStreetMap Nominatim，
-        連線時你的瀏覽器會向這些服務送出一般的網頁請求（例如 IP 位址）。
+        登入時會連到 Google（Firebase、Google
+        登入）。連線時你的瀏覽器會向這些服務送出一般的網頁請求（例如 IP
+        位址），各服務依其隱私權政策處理。
       </p>
 
       <h2>聯絡</h2>
       <p>
-        有問題請到
+        有問題或要求刪除資料，請到
         <a href="https://github.com/KJLavender/JP-maimai-Net/issues">GitHub Issues</a> 回報。
       </p>
 
@@ -86,25 +93,33 @@
       <h1 lang="en">Privacy</h1>
       <div lang="en">
         <p>
-          This site has no accounts, no server of its own, and no analytics or ad tracking. Arcades
-          you mark as visited or favorite, and your filters, are stored only in your browser's
-          localStorage.
+          You can use every feature without an account. In that case arcades you mark as visited or
+          favorite, and your filters, are stored only in your browser's localStorage and the site
+          does not contact any sign-in service. There is no analytics or ad tracking.
         </p>
         <p>
-          If you turn on the optional <b>Google sync</b>, the site requests only the
-          <code>drive.appdata</code> scope: it can read and write a single hidden file
-          (<code>maimai-sync.json</code>) that it creates in your Google Drive's app data folder,
-          and <b>cannot see or change any of your other files</b>. The file contains only the IDs of
-          arcades you marked and when you marked them. Your browser talks to Google directly; the
-          data never passes through us. The access token stays in browser memory and expires after
-          about an hour. "Stop sync" turns sync off on that device (and revokes access if you are
-          signed in); to fully revoke access or delete the hidden file, use Google Drive → Settings
-          → Manage apps.
+          <b>Optional account.</b> Signing in exists only to sync your visited and favorite arcades
+          between devices. Accounts and data use Google Firebase (Authentication and Cloud
+          Firestore). We store your sign-in email, display name (and, with Google sign-in, your
+          Google name and profile photo URL), account creation and last sign-in times (recorded by
+          Firebase), and the IDs of arcades you marked with the time you marked them. We do not
+          store your location, searches or filters. Email passwords are stored hashed by Firebase
+          and are never visible to us; Google sign-in gives the site only your basic profile, not
+          your Gmail, Drive or other data. The data is used only for syncing, is never sold or
+          shared, and database rules let each user read and write only their own record. The site
+          maintainer can see account emails and records in the Firebase console and only looks when
+          handling an issue.
         </p>
         <p>
-          Map tiles come from OpenStreetMap and OpenRailwayMap and place search uses OpenStreetMap
-          Nominatim; your browser sends ordinary web requests (such as your IP address) to them.
-          Questions:
+          Signing out keeps your records in your account and clears them from that device. To delete
+          your account, tap your name at the top right → "刪除帳號" (Delete account); the account
+          and its cloud records are deleted immediately.
+        </p>
+        <p>
+          Map tiles come from OpenStreetMap and OpenRailwayMap, place search uses OpenStreetMap
+          Nominatim, and signing in connects to Google (Firebase, Google sign-in); your browser
+          sends ordinary web requests (such as your IP address) to them. Questions or data deletion
+          requests:
           <a href="https://github.com/KJLavender/JP-maimai-Net/issues">GitHub Issues</a>.
         </p>
       </div>

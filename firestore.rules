@@ -1,0 +1,15 @@
+rules_version = '2';
+
+// 貼到 Firebase 控制台 → Firestore Database → 規則（Rules）→ 發布
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 每個人只能讀寫自己的那份紀錄；其他路徑一律拒絕
+    match /users/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['v', 'updated', 'visited', 'favs'])
+        && request.resource.data.visited is map
+        && request.resource.data.favs is map;
+    }
+  }
+}

@@ -1,6 +1,6 @@
 {
-  "name": "全日本音遊機廳",
-  "short_name": "音遊機廳",
+  "name": "音GO · 找機廳",
+  "short_name": "音GO",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

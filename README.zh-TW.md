@@ -1,4 +1,4 @@
-# 🎵 全日本音遊機廳 · Arcade Finder
+# 🎵 音GO · 找機廳（OtoGO）
 
 [English](README.md) | **繁體中文**
 
@@ -20,7 +20,7 @@
 - 🧭 **機廳巡迴路線**：最多 9 站，一鍵開 Google Maps 多點導航
 - 🎰 **台灣機台資訊**：台數、版本／框體、投幣方式、排隊方式、玩家備註（來自 Music Game Map）
 - 🔗 **分享連結**：篩選條件存在網址裡，傳給朋友打開就是同樣的結果（只分享「搜尋此地」，不會分享你的 GPS 位置）
-- 🏆 **機廳制霸**：店家按「🏁 標記去過」，47 都道府縣方格地圖依達成比例上色，可匯出成圖片分享；紀錄存在你自己的瀏覽器；可以開啟 **Google 同步**讓手機和電腦自動合併（存在*你自己*的 Google 雲端硬碟隱藏資料夾，不經過我們的伺服器），或用「備份／還原」代碼搬過去
+- 🏆 **機廳制霸**：店家按「🏁 標記去過」，47 都道府縣方格地圖依達成比例上色，可匯出成圖片分享；紀錄存在你自己的瀏覽器；可以從右上角**登入**（Google 或 Email＋密碼）讓手機和電腦自動同步，或用「備份／還原」代碼搬過去
 - 📊 **統計**：各音遊設置店數的變化（每週更新多一個點）、各都道府縣機廳數排行，可切換遊戲、可看表格
 - 🗺️ **清單／地圖雙檢視**：叢集標記，綠＝營業中
 - 📱 **PWA**：可加到主畫面，離線也能看清單
@@ -50,7 +50,7 @@
 │   ├── index.html        頁面骨架（__DATA__ 等佔位符由 build_site.py 填入）
 │   ├── style.css / app.js
 │   ├── conquest.js / stats.js   🏆 制霸、📊 統計
-│   ├── sync.js / privacy.html   ☁️ Google 同步、隱私權說明
+│   ├── account.js / privacy.html   👤 登入與同步（Firebase）、隱私權說明
 │   └── sw.js / manifest.webmanifest / icon.svg   PWA
 ├── site/                 產生出來的網站（不進 repo，Netlify 部署時產生）
 ├── tests/test_site.py    E2E 測試（Playwright）
@@ -80,20 +80,21 @@
 流程：改東西 → push 到 `test` → 在測試版網址確認 → 開 PR `test → main` → review 通過後合併 → 正式版更新。
 
 **CI**（GitHub Actions，`push` / PR 到 `main`、`test` 時執行）：
-檢查 `templates/` 的排版（Prettier），並執行 `scripts/build_site.py` 產生網站，再用 Playwright 開 Chromium 跑 `tests/test_site.py`（搜尋、篩選、收藏、定位、路線、地圖、機台資訊、分享連結、制霸、統計、Google 同步、營業狀態、手機版面等 70 項）
+檢查 `templates/` 的排版（Prettier），並執行 `scripts/build_site.py` 產生網站，再用 Playwright 開 Chromium 跑 `tests/test_site.py`（搜尋、篩選、收藏、定位、路線、地圖、機台資訊、分享連結、制霸、統計、帳號與同步、營業狀態、手機版面等）
 
 **每週自動更新**（`.github/workflows/update-data.yml`）：每週一 03:00（日本時間）重爬資料，有變動就開 PR 到 `test`，PR 內文列出新增／消失的店、遊戲與營業時間變動；E2E 測試會先在流程裡跑過。也可以在 Actions 頁面手動執行。Music Game Map 會擋 GitHub Actions 的連線，所以自動更新沿用 `data/mgm_cache.csv`；台灣中文名／機台資訊請偶爾在本機跑 `--mgm` 更新（掃描失敗時會自動保留舊快取）。
 
 **CD**：Netlify 部署時執行 `python3 scripts/build_site.py` 產生 `site/` 再發佈（見 `netlify.toml`）。`site/` 不進 repo，改網頁只要改 `templates/`、改資料只要改 `data/`。
 
-**Google 同步設定**（只要做一次；沒設定時同步按鈕不會出現）：
+**帳號設定（Firebase）**（只要做一次；`templates/account.js` 裡的 `FIREBASE_CONFIG` 填好之前，登入按鈕不會出現）：
 
-1. [Google Cloud 控制台](https://console.cloud.google.com/) → 建立專案 →「API 和服務」→ 啟用 **Google Drive API**
-2. 「OAuth 同意畫面」：外部；應用程式名稱「全日本音遊機廳」；隱私權政策 `https://maimai-japan-map.netlify.app/privacy.html`；加入範圍 `https://www.googleapis.com/auth/drive.appdata`（非敏感範圍，不用安全審查）；最後按「**發布應用程式**」（停在「測試中」只有列出的測試使用者能登入）
-3. 「憑證」→「建立 OAuth 用戶端 ID」→「網頁應用程式」；**已授權的 JavaScript 來源**：`https://maimai-japan-map.netlify.app`、`https://test--maimai-japan-map.netlify.app`、`http://localhost:8765`（不用填重新導向 URI）
-4. Netlify →「Site configuration」→「Environment variables」：`GOOGLE_OAUTH_CLIENT_ID=xxxx.apps.googleusercontent.com`，重新部署。本機 build 把同一行寫進 `.env`
+1. [Firebase 控制台](https://console.firebase.google.com/) →「建立專案」→ 選既有的 Google Cloud 專案（Spark 免費方案）
+2. 「Authentication」→「Sign-in method」：開啟 **電子郵件／密碼** 和 **Google**。「設定」→「已授權網域」：加入 `maimai-japan-map.netlify.app`、`test--maimai-japan-map.netlify.app`（`localhost` 預設就有）
+3. 「Firestore Database」→「建立資料庫」（正式環境模式，區域例如 `asia-east1` 台灣）→「規則」：貼上 [`firestore.rules`](firestore.rules) 的內容後發布
+4. 「專案設定」→「你的應用程式」→ 新增 **網頁**應用程式 → 把 `apiKey`、`authDomain`、`projectId`、`appId` 填進 `templates/account.js` 的 `FIREBASE_CONFIG`
+5. Google Cloud 控制台 →「Google Auth Platform」→「目標對象」→「**發布應用程式**」（停在「測試中」只有列出的測試使用者能用 Google 登入）
 
-用戶端 ID 是公開資訊（會出現在網頁裡），不是密鑰。Deploy preview 的網址是隨機的、不在授權來源裡，所以只有上面這幾個網址能登入。
+Firebase 的網頁設定是公開資訊（會出現在網頁裡），不是密鑰；誰能讀寫什麼由 `firestore.rules` 控管，每個人只能讀寫 `users/{自己的 uid}`。Firebase SDK 只有在有人打開登入視窗、或之前登入過時才會載入。
 
 本機跑測試：
 
