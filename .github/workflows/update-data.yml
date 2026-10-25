@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
-      - run: pip install requests beautifulsoup4 playwright
+      - run: pip install requests beautifulsoup4 playwright pykakasi
 
       - name: Scrape and merge
         env:
@@ -34,13 +34,18 @@ jobs:
         # 要更新請在本機跑 python scripts/update_data.py --mgm
         run: python scripts/update_data.py
 
+      - name: Song constants (arcade-songs)
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python scripts/songs.py
+
       - name: Regenerate site/
         run: python scripts/build_site.py
 
       - name: Anything changed?
         id: diff
         run: |
-          if git diff --quiet -- data/arcades.csv data/mgm_cache.csv; then
+          if git diff --quiet -- data/arcades.csv data/mgm_cache.csv data/songs.json; then
             echo "changed=false" >> "$GITHUB_OUTPUT"; echo "資料沒有變動"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
