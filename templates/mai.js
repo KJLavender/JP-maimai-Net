@@ -644,25 +644,60 @@ function refreshLib() {
   bindRows(res);
 }
 
-/* ---- 🎲 抽歌：從目前篩選結果隨機抽 ---- */
+/* ---- 🎲 抽歌：從目前篩選結果隨機抽；難度、等級可以直接在這裡選（和篩選共用） ---- */
 function openDraw(again) {
   const f = mai.f,
     pool = mai.list || [];
-  if (!pool.length) return toast('沒有符合篩選的譜面可以抽');
   const n = Math.min(f.draw, pool.length),
     picked = new Set();
   while (picked.size < n) picked.add(pool[Math.floor(Math.random() * pool.length)]);
+  const lvOpts = sel => opt('', '不限', sel) + LEVELS.map(l => opt(l, l, sel)).join('');
+  const others = activeFilters(f) - ['diffs', 'lvMin', 'lvMax'].filter(k => f[k].length).length;
   const d = ensureDialog(
     'draw',
     `<h2>🎲 抽歌</h2>
-    <p class="dlg-hint">從目前篩選的 ${pool.length} 個譜面裡抽。</p>
-    <div class="chips mai-drawn">${[1, 3, 5, 10]
+    <div class="mai-frow"><label>難度</label><div class="chips">${[
+      ...DIFF_NAMES.map((name, i) => [i, name]),
+      ['u', '宴'],
+    ]
+      .map(([v, name]) => maiChip('data-dd', 'diffs', v, f.diffs.includes(String(v)), name))
+      .join('')}</div></div>
+    <div class="mai-frow"><label>等級</label><div class="mai-range"><select id="draw-lvmin">${lvOpts(f.lvMin)}</select> ～ <select id="draw-lvmax">${lvOpts(f.lvMax)}</select></div></div>
+    <div class="mai-frow"><label>首數</label><div class="chips">${[1, 3, 5, 10]
       .map(k => maiChip('data-n', 'draw', k, f.draw === k, k + ' 首', ' rad'))
-      .join('')}</div>
-    <div id="draw-res">${[...picked].map(x => sheetRowHTML(x)).join('')}</div>
-    <div class="cq-actions"><button class="btn mai-roll" id="draw-again">🎲 再抽一次</button></div>`,
+      .join('')}</div></div>
+    <p class="dlg-hint">從 ${pool.length} 個譜面裡抽${others ? `（另外套用了 ${others} 個「⚙️ 篩選」條件）` : ''}。</p>
+    <div id="draw-res">${
+      pool.length
+        ? [...picked].map(x => sheetRowHTML(x)).join('')
+        : '<div class="empty">沒有符合的譜面，換個難度或等級試試</div>'
+    }</div>
+    <div class="cq-actions"><button class="btn mai-roll" id="draw-again"${pool.length ? '' : ' disabled'}>🎲 再抽一次</button></div>`,
   );
   d.classList.add('dlg-wide');
+  const change = () => {
+    LS.set('maiFilter', f);
+    mai.shown = PAGE;
+    mai.drawChanged = true;
+    refreshLib();
+    openDraw(true);
+  };
+  d.querySelectorAll('[data-dd]').forEach(
+    c =>
+      (c.onclick = () => {
+        const v = c.dataset.v;
+        f.diffs = f.diffs.includes(v) ? f.diffs.filter(x => x !== v) : [...f.diffs, v];
+        change();
+      }),
+  );
+  d.querySelector('#draw-lvmin').onchange = e => {
+    f.lvMin = e.target.value;
+    change();
+  };
+  d.querySelector('#draw-lvmax').onchange = e => {
+    f.lvMax = e.target.value;
+    change();
+  };
   d.querySelectorAll('[data-n]').forEach(
     c =>
       (c.onclick = () => {
@@ -672,6 +707,13 @@ function openDraw(again) {
       }),
   );
   d.querySelector('#draw-again').onclick = () => openDraw(true);
+  // 關掉時重畫曲庫，讓「⚙️ 篩選」裡的選項跟著更新
+  d.onclose = () => {
+    const body = document.getElementById('mai-body');
+    if (mai.drawChanged && body && document.getElementById('mai-res'))
+      renderLibrary(body, mai.songs);
+    mai.drawChanged = false;
+  };
   bindRows(d);
   if (!again || !d.open) d.showModal();
 }
