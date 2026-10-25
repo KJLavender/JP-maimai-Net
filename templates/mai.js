@@ -493,6 +493,7 @@ function renderLibrary(el, S) {
   );
   el.querySelector('#mai-reset').onclick = () => {
     for (const k of FILTER_KEYS) f[k] = Array.isArray(DEFAULT_F[k]) ? [] : DEFAULT_F[k];
+    f.q = '';
     LS.set('maiFilter', f);
     renderLibrary(el, S);
   };
