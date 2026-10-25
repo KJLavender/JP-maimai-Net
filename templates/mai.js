@@ -311,14 +311,19 @@ function filterSheets(S, f) {
     q = foldCJK(f.q.trim().toLowerCase()),
     r = normRomaji(f.q),
     num = (x, d) => (x === '' || x == null || isNaN(+x) ? d : +x),
-    lvMin = f.lvMin ? levelValue(f.lvMin) : null,
-    lvMax = f.lvMax ? levelValue(f.lvMax) : null,
-    cMin = num(f.cMin, -1),
-    cMax = num(f.cMax, 99),
-    vMin = num(f.verMin, -1),
-    vMax = num(f.verMax, 999),
-    bMin = num(f.bpmMin, null),
-    bMax = num(f.bpmMax, null),
+    // 範圍只填一邊時就只看那一個值（例：版本只選 MAGiCAL）
+    one = (a, b) => (a === '' || a == null ? b : a),
+    lvA = one(f.lvMin, f.lvMax),
+    lvB = one(f.lvMax, f.lvMin),
+    lvMin = lvA ? levelValue(lvA) : null,
+    lvMax = lvB ? levelValue(lvB) : null,
+    c10 = c => Math.round(c * 10),
+    cMin = c10(num(one(f.cMin, f.cMax), -1)),
+    cMax = c10(num(one(f.cMax, f.cMin), 99)),
+    vMin = num(one(f.verMin, f.verMax), -1),
+    vMax = num(one(f.verMax, f.verMin), 999),
+    bMin = num(one(f.bpmMin, f.bpmMax), null),
+    bMax = num(one(f.bpmMax, f.bpmMin), null),
     diffs = new Set(f.diffs),
     types = new Set(f.types.map(Number)),
     cats = new Set(f.cats.map(Number)),
@@ -343,7 +348,7 @@ function filterSheets(S, f) {
         const l = levelValue(v.lv);
         if (isNaN(l) || l < (lvMin ?? 0) || l > (lvMax ?? 99)) continue;
       }
-      if (v.c < cMin - 1e-9 || v.c > cMax + 1e-9) continue;
+      if (c10(v.c) < cMin || c10(v.c) > cMax) continue;
       if (v.ver < vMin || v.ver > vMax) continue;
       if (f.des !== '' && sh.des !== +f.des) continue;
       if (f.newOnly && !newVers.has(v.ver)) continue;
@@ -378,11 +383,14 @@ const opt = (v, label, sel) =>
 function filterHTML(S, f) {
   const multi = (key, items) =>
     items.map(([v, n]) => maiChip('data-m', key, v, f[key].includes(String(v)), n)).join('');
-  const lvOpts = sel => opt('', '不限', sel) + LEVELS.map(l => opt(l, l, sel)).join('');
-  const verOpts = sel => opt('', '不限', sel) + S.vers.map((v, i) => opt(i, v[1], sel)).join('');
+  const lvOpts = (sel, none = '不限') =>
+    opt('', none, sel) + LEVELS.map(l => opt(l, l, sel)).join('');
+  const verOpts = (sel, none = '不限') =>
+    opt('', none, sel) + S.vers.map((v, i) => opt(i, v[1], sel)).join('');
   const desSorted = S.des.map((n, i) => [i, n]).sort((a, b) => a[1].localeCompare(b[1]));
   return `<details class="mai-filter" id="mai-filter"${mai.filterOpen ? ' open' : ''}>
     <summary>⚙️ 篩選<span id="mai-fcount"></span></summary>
+    <p class="cq-hint">等級、定數、版本、BPM 只填一邊就只看那一個，兩邊都填才是範圍。</p>
     <div class="mai-frow"><label>版本區域</label><div class="chips">${[
       ['intl', '國際版'],
       ['jp', '日版'],
@@ -397,15 +405,15 @@ function filterHTML(S, f) {
       'types',
       TYPE_NAMES.map((n, i) => [i, n]),
     )}</div></div>
-    <div class="mai-frow"><label>等級</label><div class="mai-range"><select data-f="lvMin">${lvOpts(f.lvMin)}</select> ～ <select data-f="lvMax">${lvOpts(f.lvMax)}</select></div></div>
-    <div class="mai-frow"><label>定數</label><div class="mai-range"><input data-f="cMin" type="number" step="0.1" min="1" max="15" inputmode="decimal" placeholder="最低" value="${esc(f.cMin)}"> ～ <input data-f="cMax" type="number" step="0.1" min="1" max="15" inputmode="decimal" placeholder="最高" value="${esc(f.cMax)}"></div></div>
+    <div class="mai-frow"><label>等級</label><div class="mai-range"><select data-f="lvMin">${lvOpts(f.lvMin)}</select> ～ <select data-f="lvMax">${lvOpts(f.lvMax, '—')}</select></div></div>
+    <div class="mai-frow"><label>定數</label><div class="mai-range"><input data-f="cMin" type="number" step="0.1" min="1" max="15" inputmode="decimal" placeholder="例：13.7" value="${esc(f.cMin)}"> ～ <input data-f="cMax" type="number" step="0.1" min="1" max="15" inputmode="decimal" placeholder="可不填" value="${esc(f.cMax)}"></div></div>
     <div class="mai-frow"><label>分類</label><div class="chips">${multi(
       'cats',
       S.cats.map((n, i) => [i, n]),
     )}</div></div>
-    <div class="mai-frow"><label>版本</label><div class="mai-range"><select data-f="verMin">${verOpts(f.verMin)}</select> ～ <select data-f="verMax">${verOpts(f.verMax)}</select></div></div>
+    <div class="mai-frow"><label>版本</label><div class="mai-range"><select data-f="verMin">${verOpts(f.verMin)}</select> ～ <select data-f="verMax">${verOpts(f.verMax, '—')}</select></div></div>
     <div class="mai-frow"><label>譜師</label><div class="mai-range"><select data-f="des">${opt('', '不限', f.des)}${desSorted.map(([i, n]) => opt(i, n, f.des)).join('')}</select></div></div>
-    <div class="mai-frow"><label>BPM</label><div class="mai-range"><input data-f="bpmMin" type="number" inputmode="numeric" placeholder="最低" value="${esc(f.bpmMin)}"> ～ <input data-f="bpmMax" type="number" inputmode="numeric" placeholder="最高" value="${esc(f.bpmMax)}"></div></div>
+    <div class="mai-frow"><label>BPM</label><div class="mai-range"><input data-f="bpmMin" type="number" inputmode="numeric" placeholder="例：180" value="${esc(f.bpmMin)}"> ～ <input data-f="bpmMax" type="number" inputmode="numeric" placeholder="可不填" value="${esc(f.bpmMax)}"></div></div>
     <div class="mai-frow"><label>其他</label><div class="chips">
       ${maiChip('data-b', 'newOnly', 1, f.newOnly, '🆕 新曲（B15）', ' tgl')}
       ${maiChip('data-b', 'mine', 1, f.mine, '⭐ 我的清單', ' fav')}
@@ -660,7 +668,8 @@ function openDraw(again) {
   const n = Math.min(f.draw, pool.length),
     picked = new Set();
   while (picked.size < n) picked.add(pool[Math.floor(Math.random() * pool.length)]);
-  const lvOpts = sel => opt('', '不限', sel) + LEVELS.map(l => opt(l, l, sel)).join('');
+  const lvOpts = (sel, none = '不限') =>
+    opt('', none, sel) + LEVELS.map(l => opt(l, l, sel)).join('');
   const others = activeFilters(f) - ['diffs', 'lvMin', 'lvMax'].filter(k => f[k].length).length;
   const d = ensureDialog(
     'draw',
@@ -671,7 +680,7 @@ function openDraw(again) {
     ]
       .map(([v, name]) => maiChip('data-dd', 'diffs', v, f.diffs.includes(String(v)), name))
       .join('')}</div></div>
-    <div class="mai-frow"><label>等級</label><div class="mai-range"><select id="draw-lvmin">${lvOpts(f.lvMin)}</select> ～ <select id="draw-lvmax">${lvOpts(f.lvMax)}</select></div></div>
+    <div class="mai-frow"><label>等級</label><div class="mai-range"><select id="draw-lvmin">${lvOpts(f.lvMin)}</select> ～ <select id="draw-lvmax">${lvOpts(f.lvMax, '—')}</select></div></div>
     <div class="mai-frow"><label>首數</label><div class="chips">${[1, 3, 5, 10]
       .map(k => maiChip('data-n', 'draw', k, f.draw === k, k + ' 首', ' rad'))
       .join('')}</div></div>
