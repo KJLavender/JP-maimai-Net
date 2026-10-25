@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
-"""maimai DX 歌曲定數：arcade-songs 資料集（約 5MB）→ 瘦身成 data/songs.json，給網站 🎵 B50 頁用。
+"""maimai DX 曲庫：arcade-songs 資料集（約 5MB）→ 瘦身成 data/songs.json，給網站 🎵 maimai 頁（曲庫、B50）用。
 來源：https://arcade-songs.zetaraku.dev（與 mai-bot 相同）
-格式：{"updated", "new": [新曲版本], "songs": [[歌名, "dx"|"std", 版本, 封面檔名, [5 難度定數], 估計遮罩, 羅馬拼音]]}
-      定數依序 BASIC～Re:MASTER，沒有該難度為 null；估計遮罩第 i 位是 1 表示該難度定數還沒公布、用等級估的。
-      羅馬拼音已正規化（與 mai-bot 相同、和 mai.js 的 normRomaji 一致），給 🔍 查歌用拼音搜日文歌名。
+格式（用陣列省空間，索引指向 cats／vers／des）：
+  {"updated", "new": [國際版新曲版本], "cats": [分類], "vers": [[版本, 簡稱, 日期]], "des": [譜師],
+   "songs": [[歌名, 藝術家, 分類, 版本, BPM, 日期, 封面, 羅馬拼音, 未解禁, 備註, [譜面…]]]}
+  譜面：[類型 0=DX 1=STD 2=宴, 難度 0～4（宴是「【宴】」這類字）, 等級, 定數, 估計, 譜師, 物量, 地區, 版本, 國際版]
+    估計 1＝定數還沒公布、用等級估的；物量 [tap, hold, slide, touch, break, total]
+    地區這些位元：1 日版、2 國際版、4 美國版、8 中國版；國際版和日版不同時是 [等級, 定數, 估計, 版本]，相同是 0
+  羅馬拼音已正規化（與 mai-bot 相同、和 mai.js 的 normRomaji 一致），給搜尋用拼音找日文歌名。
 用法：pip install pykakasi && python scripts/songs.py
 """
 import paths
@@ -29,30 +33,63 @@ def romaji(title):
 URL = "https://dp4p6x0xfi5o9.cloudfront.net/maimai/data.json"
 OUT = os.path.join(paths.DATA, "songs.json")
 DIFFS = ["basic", "advanced", "expert", "master", "remaster"]
+TYPES = ["dx", "std", "utage"]
+REGIONS = ["jp", "intl", "usa", "cn"]
 
 
 def main():
     d = requests.get(URL, timeout=60).json()
-    # 新曲枠＝國際版最新的兩個版本（例：CiRCLE 與 CiRCLE PLUS）；書籤工具讀得到官網新曲清單時以官網為準
-    intl = {s["version"] for s in d["songs"] for sh in s["sheets"] if (sh.get("regions") or {}).get("intl")}
-    new = [v["version"] for v in d["versions"] if v["version"] in intl][-2:]
-    songs = []
+    cats = [c["category"] for c in d["categories"]]
+    vers = [[v["version"], v["abbr"], v["releaseDate"]] for v in d["versions"]]
+    vidx = {v[0]: i for i, v in enumerate(vers)}
+    des, didx = [], {}
+
+    def designer(name):
+        if not name or name == "-":
+            return -1
+        if name not in didx:
+            didx[name] = len(des)
+            des.append(name)
+        return didx[name]
+
+    songs, intl_vers = [], set()
     for s in d["songs"]:
-        for kind in ("dx", "std"):
-            sheets = {sh["difficulty"]: sh for sh in s["sheets"] if sh["type"] == kind}
-            if not sheets:
-                continue
-            consts, est = [], 0
-            for i, diff in enumerate(DIFFS):
-                sh = sheets.get(diff)
-                consts.append(sh["internalLevelValue"] if sh else None)
-                if sh and sh.get("internalLevel") is None:
-                    est |= 1 << i
-            songs.append([s["title"], kind, s["version"], s.get("imageName") or "", consts, est, romaji(s["title"])])
-    out = {"updated": d.get("updateTime", "")[:10], "new": new, "songs": songs}
+        sheets = []
+        for sh in s["sheets"]:
+            ver = vidx.get(sh.get("version") or s["version"], vidx.get(s["version"], -1))
+            reg = sum(1 << i for i, r in enumerate(REGIONS) if (sh.get("regions") or {}).get(r))
+            o = (sh.get("regionOverrides") or {}).get("intl") or {}
+            io = 0
+            if o:
+                c, est = sh["internalLevelValue"], int(sh["internalLevel"] is None)
+                if "internalLevelValue" in o:
+                    c, est = o["internalLevelValue"], int(o.get("internalLevel") is None)
+                elif "levelValue" in o:
+                    c, est = o["levelValue"], 1
+                io = [o.get("level", sh["level"]), c, est, vidx.get(o.get("version"), ver)]
+            if reg & 2 and sh["type"] != "utage":
+                intl_vers.add(io[3] if io else ver)
+            n = sh.get("noteCounts") or {}
+            notes = [n.get(k) for k in ("tap", "hold", "slide", "touch", "break", "total")]
+            sheets.append([
+                TYPES.index(sh["type"]),
+                DIFFS.index(sh["difficulty"]) if sh["difficulty"] in DIFFS else sh["difficulty"],
+                sh["level"], sh["internalLevelValue"], int(sh["internalLevel"] is None),
+                designer(sh.get("noteDesigner")), notes if n.get("total") else 0, reg, ver, io,
+            ])
+        songs.append([
+            s["title"], s.get("artist") or "", cats.index(s["category"]), vidx.get(s["version"], -1),
+            s.get("bpm"), s.get("releaseDate") or "", s.get("imageName") or "", romaji(s["title"]),
+            int(bool(s.get("isLocked"))), s.get("comment") or "", sheets,
+        ])
+    # 新曲枠＝國際版最新的兩個版本；書籤工具讀得到官網新曲清單時以官網為準
+    new = [vers[i][0] for i in sorted(intl_vers)][-2:]
+    out = {"updated": d.get("updateTime", "")[:10], "new": new, "cats": cats, "vers": vers, "des": des,
+           "songs": songs}
     with open(OUT, "w", encoding="utf-8", newline="\n") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
-    print(f"{len(songs)} 個譜面組（歌名×DX/STD）；新曲版本 {new}；{os.path.getsize(OUT) // 1024} KB → data/songs.json")
+    n_sheets = sum(len(s[10]) for s in songs)
+    print(f"{len(songs)} 首、{n_sheets} 個譜面；新曲版本 {new}；{os.path.getsize(OUT) // 1024} KB → data/songs.json")
 
 
 if __name__ == "__main__":
