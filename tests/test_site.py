@@ -775,6 +775,29 @@ export const serverTimestamp = () => Date.now();
     page.wait_for_selector("#mai-res .mai-lrow")
     check("曲庫：重新整理後分頁與篩選都還在", page.locator(".mai-tabs [data-on='1']").inner_text() == "📚 曲庫"
           and shown_count() == count_where("14+"))
+
+    # ---------- 🎖️ 段位 ----------
+    def course(region, kind):
+        return next(c for c in songs["dan"] if c[1] == region and c[2] == kind)
+
+    page.locator(".mai-tabs button", has_text="段位").click()
+    page.wait_for_selector("#mai-body .mai-lvh")
+    ci = course("intl", "dan")
+    heads = page.locator("#mai-body .mai-lvh").all_inner_texts()
+    check("段位：預設國際版最新的段位認定", page.locator("#dan-ver").input_value() == ci[0]
+          and len(heads) == len(ci[3]) and heads[0].startswith(ci[3][0][0])
+          and page.locator("#mai-body .mai-lrow").count() == sum(len(sec[2]) for sec in ci[3]),
+          f"{page.locator('#dan-ver').input_value()} {len(heads)}")
+    page.locator("[data-dr='region'][data-v='jp']").click()
+    cj = course("jp", "dan")
+    check("段位：切換日版用日版的課題曲", page.locator("#dan-ver").input_value() == cj[0], cj[0])
+    page.locator("[data-dk='kind'][data-v='friend']").click()
+    check("段位：友人對戰顯示對手評級", page.locator("#dan-ver").input_value() == course("jp", "friend")[0]
+          and "對手" in page.locator("#mai-body .mai-extra").first.inner_text())
+    page.locator("#mai-body .mai-lrow").first.click()
+    check("段位：點課題曲看各評級 Rating", page.locator("#chart[open] .mai-rt").is_visible())
+    page.locator("#chart .dlg-x").click()
+    page.locator("[data-dr='region'][data-v='intl']").click()
     ctx.close()
 
     # ---------- 營業狀態（固定時鐘） ----------

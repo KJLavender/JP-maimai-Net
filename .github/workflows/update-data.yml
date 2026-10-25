@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
-      - run: pip install requests beautifulsoup4 playwright pykakasi
+      - run: pip install requests beautifulsoup4 playwright pykakasi pyyaml
 
       - name: Scrape and merge
         env:
