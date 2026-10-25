@@ -24,7 +24,7 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 - 🔗 **Shareable links**: filters are stored in the URL, so a friend opening the link sees the same results (only "search this place" locations are shared, never your GPS position)
 - 🏆 **Arcade conquest**: tap "🏁 Mark visited" on any arcade; a tile map of the 47 prefectures fills in by how much you've covered and can be exported as an image to share. Records live in your own browser; optionally **sign in** (Google or email + password, top right) to sync them between phone and computer automatically, or move them with a backup / restore code
 - 📊 **Stats**: how many arcades carry each rhythm game over time (one more point every weekly update) and a ranking by prefecture, switchable by game, with a table view
-- 🎵 **maimai DX B50**: run a bookmarklet on maimai DX NET (International) while logged in; it reads *your own* scores and brings them back to compute Best 35 + New 15 with chart constants. Your SEGA password never passes through this site; scores stay in the browser and sync to your account when signed in. Also shows 📈 score-push suggestions (charts close to the next rank that would raise your rating) and 📉 rating history
+- 🎵 **maimai DX B50**: when signed in, enter your friend code and accept the bot's friend request, then one button fetches your scores; or run a bookmarklet on maimai DX NET (International) while logged in; it reads *your own* scores and brings them back to compute Best 35 + New 15 with chart constants. Your SEGA password never passes through this site; scores stay in the browser and sync to your account when signed in. Also shows 📈 score-push suggestions (charts close to the next rank that would raise your rating) and 📉 rating history
 - 🎵 **maimai tools** (buttons, no commands — the web version of mai-bot): 🔍 song search by title or romaji, 📋 chart-constant table by level, 🎲 random chart by level; tap any chart to see the rating for each rank (SSS+…AAA)
 - 🗺️ **List / map views**: clustered markers, green = open now
 - 📱 **PWA**: add to home screen; the list works offline
@@ -102,6 +102,8 @@ Checks the formatting of `templates/` (Prettier), builds the site with `scripts/
 5. Google Cloud console → *Google Auth Platform* → *Audience* → **Publish app** (in *Testing* only listed test users can use Google sign-in)
 
 The Firebase web config is public (it ships in the page) and is not a secret; access is enforced by `firestore.rules`, where each user can only read and write `users/{their uid}`. The Firebase SDK is loaded only when someone opens the sign-in dialog or was signed in before.
+
+**Friend-code B50 fetching**: signed-in users enter their friend code on the 🎵 maimai page and press buttons (🤝 send friend request → ✅ I accepted → 🔄 update B50). Each press writes a job to `jobs/{uid}` (rules allow only queued jobs, at most one per 10 minutes for score fetching / 1 minute for friend requests); the `otogo_worker.py` in [maimai-dc-bot](https://github.com/KJLavender/maimai-dc-bot) runs on the bot's VM, does the job with the bot's maimai DX NET account and writes the scores back to `users/{uid}/mai/b50`. See that repo's README for setup.
 
 Run the tests locally:
 

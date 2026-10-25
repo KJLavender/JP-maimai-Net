@@ -20,5 +20,27 @@ service cloud.firestore {
         && request.resource.data.data is string
         && request.resource.data.data.size() < 900000;
     }
+    // 🤝 好友代碼代抓：每人一份工作單，只能放「排隊中」的工作；狀態由 mai-bot 的 otogo_worker.py（管理員權限）改。
+    // 上一份工作做完後要隔一段時間才能再放（抓成績 10 分鐘、好友申請 1 分鐘）；卡住超過 30 分鐘可以重放。
+    match /jobs/{uid} {
+      function cooled() {
+        return request.time > resource.data.at + duration.value(30, 'm')
+          || (!(resource.data.status in ['queued', 'running'])
+            && ((resource.data.type == 'b50' && request.time > resource.data.at + duration.value(10, 'm'))
+              || (resource.data.type == 'friend' && request.time > resource.data.at + duration.value(1, 'm'))));
+      }
+      allow read: if request.auth != null && request.auth.uid == uid;
+      // 刪掉再建也要等冷卻時間，不然可以繞過頻率限制
+      allow delete: if request.auth != null && request.auth.uid == uid && cooled();
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['type', 'code', 'status', 'at'])
+        && request.resource.data.type in ['friend', 'b50']
+        && request.resource.data.code is string
+        && request.resource.data.code.matches('[0-9]{13}')
+        && request.resource.data.status == 'queued'
+        && request.resource.data.at == request.time
+        && (resource == null || cooled());
+    }
+    // maiBind/{好友代碼}：哪個帳號送的好友申請，只有 worker 能讀寫（其他路徑一律拒絕）
   }
 }

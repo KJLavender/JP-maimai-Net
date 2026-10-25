@@ -161,6 +161,125 @@ function bindGuide(el) {
     };
 }
 
+/* ---- 🤝 好友代碼代抓：送好友申請 → 使用者在官網接受 → 按按鈕抓成績（工作由 mai-bot 的 otogo_worker.py 做） ---- */
+const JOB_BUSY = ['queued', 'running'];
+const JOB_WAIT = { b50: 10, friend: 1 }; // 同一個帳號兩次工作之間要隔幾分鐘（firestore.rules 也有擋）
+const jobMs = t => (t && t.toMillis ? t.toMillis() : t || 0);
+const jobLeft = j => (j ? jobMs(j.at) + JOB_WAIT[j.type] * 60000 - Date.now() : 0);
+function friendInner() {
+  if (!acct.user)
+    return LS.get('user', null)
+      ? '<p class="cq-hint">登入狀態載入中…</p>'
+      : `<p class="cq-hint">登入音GO 後輸入好友代碼，音GO 的機器人加你好友就能幫你抓成績，不用書籤。</p>
+        <button class="btn" id="mf-login">👤 登入</button>`;
+  const j = mai.job;
+  if (j === undefined) return '<p class="cq-hint">載入中…</p>';
+  const msg =
+    j && j.msg ? `<p class="mf-msg${j.status === 'error' ? ' err' : ''}">${esc(j.msg)}</p>` : '';
+  if (j && JOB_BUSY.includes(j.status))
+    return `<p class="mf-msg busy">${
+      j.status === 'queued'
+        ? '⏳ 排隊中…'
+        : j.type === 'friend'
+          ? '⏳ 正在送出好友申請…'
+          : '⏳ 正在抓成績（約 1～2 分鐘）…'
+    }</p><p class="cq-hint">可以先去看別的，好了會自動更新。</p>`;
+  const left = jobLeft(j),
+    wait = left > 0 ? ` disabled title="${Math.ceil(left / 60000)} 分鐘後可以再按"` : '',
+    waitHint =
+      left > 0 ? `<small class="mf-wait">${Math.ceil(left / 60000)} 分鐘後可以再按</small>` : '',
+    change = '<button class="btn ghost small" id="mf-change">換好友代碼</button>';
+  // 還沒綁好友代碼：輸入代碼、送好友申請
+  if (!j || mai.changeCode || (j.type === 'friend' && j.status === 'error'))
+    return `${msg}<p class="cq-hint">好友代碼在 maimai DX NET 的「好友」→「好友代碼」，13 位數字。</p>
+      <div class="mf-row"><input id="mf-code" class="mai-input" inputmode="numeric" maxlength="16" placeholder="好友代碼（13 位數字）" value="${esc(LS.get('maiCode', ''))}">
+      <button class="btn" id="mf-friend"${wait}>🤝 送出好友申請</button></div>${waitHint}`;
+  // 送出了、等使用者在官網接受
+  if (j.type === 'friend' && j.status === 'sent')
+    return `${msg}<div class="mf-row"><button class="btn" id="mf-b50"${wait}>✅ 我接受了，抓成績</button>${change}</div>${waitHint}`;
+  return `${msg}<div class="mf-row"><button class="btn" id="mf-b50"${wait}>🔄 更新 B50</button>${change}</div>${waitHint}
+    <p class="cq-hint">好友代碼 ${esc(j.code)}</p>`;
+}
+const friendHTML = () =>
+  acctEnabled()
+    ? `<div class="mai-friend" id="mai-friend"><h3 class="b50-h">🤝 用好友代碼自動抓成績</h3>${friendInner()}</div>`
+    : '';
+function paintFriend() {
+  const el = document.getElementById('mai-friend');
+  if (!el) return;
+  el.outerHTML = friendHTML();
+  bindFriend();
+}
+function bindFriend() {
+  const $ = id => document.getElementById(id);
+  if ($('mf-login')) $('mf-login').onclick = openLogin;
+  if ($('mf-change'))
+    $('mf-change').onclick = () => {
+      mai.changeCode = true;
+      paintFriend();
+    };
+  if ($('mf-friend'))
+    $('mf-friend').onclick = () => {
+      const code = $('mf-code').value.replace(/\D/g, '');
+      if (code.length !== 13) return toast('好友代碼是 13 位數字');
+      sendJob('friend', code);
+    };
+  if ($('mf-b50')) $('mf-b50').onclick = () => sendJob('b50', mai.job.code);
+  // 第一次顯示：讀一次目前的工作狀態
+  if (acct.user && mai.job === undefined && !mai.jobLoading) {
+    mai.jobLoading = true;
+    getMaiJob()
+      .then(
+        j => (mai.job = j),
+        () => (mai.job = null),
+      )
+      .then(() => {
+        mai.jobLoading = false;
+        paintFriend();
+        if (mai.job && JOB_BUSY.includes(mai.job.status)) watchJob();
+      });
+  }
+}
+async function sendJob(type, code) {
+  try {
+    await sendMaiJob(type, code);
+  } catch (e) {
+    return toast(
+      e && e.code === 'permission-denied' ? '按太快了，請過幾分鐘再試' : '送出失敗：' + authMsg(e),
+    );
+  }
+  LS.set('maiCode', code);
+  mai.changeCode = false;
+  mai.job = { type, code, status: 'queued', at: Date.now() };
+  paintFriend();
+  watchJob();
+}
+// 每幾秒看一次工作做完了沒（最多等 15 分鐘）
+async function watchJob() {
+  if (mai.watching) return;
+  mai.watching = true;
+  const t0 = Date.now();
+  try {
+    while (acct.user && Date.now() - t0 < 15 * 60000) {
+      await new Promise(r => setTimeout(r, 3000));
+      const was = mai.job,
+        j = (mai.job = await getMaiJob());
+      if (!j || !JOB_BUSY.includes(j.status)) {
+        if (j && j.type === 'b50' && j.status === 'done') {
+          await loadMaiCloud();
+          toast('B50 已更新');
+        }
+        paintFriend();
+        break;
+      }
+      if (!was || was.status !== j.status) paintFriend();
+    }
+  } catch (_) {
+  } finally {
+    mai.watching = false;
+  }
+}
+
 const B50_MODES = [
   ['list', '🏅 B50'],
   ['up', '📈 推分建議'],
@@ -169,8 +288,10 @@ const B50_MODES = [
 function renderB50(el, S) {
   const data = LS.get('mai', null);
   if (!data) {
-    el.innerHTML = `<div class="b50-empty">還沒有成績。照下面的步驟從 maimai DX NET 匯入，就能看到你的 B50。</div>${guideHTML(true)}`;
+    el.innerHTML = `<div class="b50-empty">還沒有成績。用好友代碼讓音GO 幫你抓，或用書籤工具從 maimai DX NET 匯入，就能看到你的 B50。</div>
+      ${friendHTML()}${guideHTML(!acct.user)}`;
     bindGuide(el);
+    bindFriend();
     return;
   }
   const mode = (mai.b50mode = mai.b50mode || 'list'),
@@ -196,13 +317,19 @@ function renderB50(el, S) {
       <div><div class="b50-name">${esc(data.name)}</div><small>官網 Rating ${data.rating || '—'} · 更新於 ${esc(when)}</small></div>
       <div class="b50-total"><b>${r.total}</b><small>舊曲 ${r.old35} ＋ 新曲 ${r.new15}</small></div>
     </div>
+    ${acct.user ? friendHTML() : ''}
     <div class="chips mai-modes">${B50_MODES.map(
       ([m, n]) =>
         `<span class="chip rad" data-m="${m}" data-on="${m === mode ? 1 : 0}">${n}</span>`,
     ).join('')}</div>
     ${body}
+    ${acct.user ? '' : friendHTML()}
     ${guideHTML(false)}
-    <p class="cq-hint">定數資料：arcade-songs（更新 ${esc(S.updated)}）${
+    <p class="cq-hint">${
+      data.src === 'friend'
+        ? '這份成績是用好友代碼代抓的：只有 EXPERT 以上、沒有 FC／AP 標記（AP 的 +1 不會算）。'
+        : ''
+    }定數資料：arcade-songs（更新 ${esc(S.updated)}）${
       r.unknown.length ? ` · ${r.unknown.length} 個譜面找不到定數，沒有算進去` : ''
     }</p>`;
   el.querySelectorAll('.mai-modes .chip').forEach(
@@ -214,6 +341,7 @@ function renderB50(el, S) {
   );
   bindCharts(el);
   bindGuide(el);
+  bindFriend();
 }
 
 // 存新成績：順便記一筆 Rating 紀錄（同一次更新不重複記）

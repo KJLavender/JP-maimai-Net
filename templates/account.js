@@ -70,10 +70,13 @@ function onUser(u) {
     if (!was || was.uid !== u.uid) {
       syncNow();
       loadMaiCloud();
+      mai.job = undefined;
+      if (state.view === 'b50') render();
     }
   } else {
     LS.set('user', null);
     renderUserBtn();
+    if (was && state.view === 'b50') render();
   }
   refreshSyncUI();
 }
@@ -249,6 +252,7 @@ async function deleteAccount() {
     const { auth, fs, A, db } = acct.fb;
     clearTimeout(acct.timer);
     await fs.deleteDoc(fs.doc(db, 'users', acct.user.uid, 'mai', 'b50'));
+    await fs.deleteDoc(fs.doc(db, 'jobs', acct.user.uid)).catch(() => {}); // 剛送出的工作要等冷卻時間才能刪
     await fs.deleteDoc(fs.doc(db, 'users', acct.user.uid));
     await auth.deleteUser(A.currentUser);
     LS.set('syncDirty', false);
@@ -281,6 +285,14 @@ async function loadMaiCloud() {
   } catch (_) {}
 }
 
+/* ---- 🤝 好友代碼代抓：在 jobs/{uid} 放一個工作，mai-bot 的 otogo_worker.py 做完會改 status、把成績寫進 users/{uid}/mai/b50 ---- */
+const jobRef = () => acct.fb.fs.doc(acct.fb.db, 'jobs', acct.user.uid);
+const sendMaiJob = (type, code) =>
+  acct.fb.fs.setDoc(jobRef(), { type, code, status: 'queued', at: acct.fb.fs.serverTimestamp() });
+async function getMaiJob() {
+  const snap = await acct.fb.fs.getDoc(jobRef());
+  return snap.exists() ? snap.data() : null;
+}
 /* ---- 右上角：登入按鈕／使用者名稱 ---- */
 function avatarHTML(u) {
   return u.photo

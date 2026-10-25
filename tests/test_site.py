@@ -391,6 +391,7 @@ export const runTransaction = async (_, fn) => {
 export const deleteDoc = ref => call(ref.path, 'delete', '{}');
 export const setDoc = (ref, d) => call(ref.path, 'set', JSON.stringify(d));
 export const getDoc = async ref => { const d = await call(ref.path, 'get'); return { exists: () => !!d, data: () => d }; };
+export const serverTimestamp = () => Date.now();
 """,
     }
     CORS = {"Access-Control-Allow-Origin": "*"}
@@ -402,7 +403,11 @@ export const getDoc = async ref => { const d = await call(ref.path, 'get'); retu
         u = urlparse(route.request.url)
         path, q = u.path.lstrip("/"), dict(x.split("=", 1) for x in u.query.split("&"))
         own = "users/" + unquote(q["uid"])
-        if path != own and not path.startswith(own + "/"):
+        job = "jobs/" + unquote(q["uid"])
+        if path != own and not path.startswith(own + "/") and path != job:
+            return route.fulfill(status=403, body="{}", headers=CORS)
+        # firestore.rules：工作還在排隊／進行中不能再送
+        if path == job and q["op"] == "set" and (cloud.get(job) or {}).get("status") in ("queued", "running"):
             return route.fulfill(status=403, body="{}", headers=CORS)
         if q["op"] == "set":
             cloud[path] = json.loads(route.request.post_data)
@@ -526,6 +531,50 @@ export const getDoc = async ref => { const d = await call(ref.path, 'get'); retu
     C.wait_for_timeout(300)
     check("登入：密碼錯誤會提示", "密碼不對" in C.locator("#lg-err").inner_text(), C.locator("#lg-err").inner_text())
     C.context.close()
+
+    # ---------- 🤝 好友代碼代抓（用 Python 假裝 mai-bot 的 otogo_worker.py） ----------
+    D = device()
+    D.evaluate("()=>{location.hash='view=b50'}")
+    D.wait_for_selector("#mai-friend", timeout=5000)
+    check("代抓：沒登入時提示登入", D.locator("#mai-friend #mf-login").is_visible())
+    D.locator("#mf-login").click()
+    D.locator("#lg-google").click()
+    synced(D)
+    D.wait_for_timeout(500)   # 等帳號裡的成績載完、畫面重畫好
+    D.wait_for_selector("#mf-code")
+    D.fill("#mf-code", "1234")
+    D.locator("#mf-friend").click()
+    check("代抓：好友代碼不是 13 位會提示", "13 位" in D.locator("#toast").inner_text() and "jobs/g1" not in cloud)
+    D.fill("#mf-code", "1234-5678-90123")
+    D.locator("#mf-friend").click()
+    D.wait_for_selector("#mai-friend .busy")
+    j = cloud.get("jobs/g1") or {}
+    check("代抓：送出好友申請（工作寫到 jobs/{uid}）", j.get("type") == "friend" and j.get("code") == "1234567890123"
+          and j.get("status") == "queued", str(j))
+    D.evaluate("()=>sendJob('b50','1234567890123')")
+    D.wait_for_timeout(300)
+    check("代抓：工作還在排隊時不能再送", "太快" in D.locator("#toast").inner_text())
+    cloud["jobs/g1"] = {**j, "status": "sent", "msg": "已送出好友申請，請到 maimai DX NET 接受「音GO」",
+                         "at": j["at"] - 120000}
+    D.wait_for_selector("#mf-b50:not([disabled])", timeout=8000)
+    check("代抓：申請送出後顯示「我接受了」按鈕與說明", "我接受了" in D.locator("#mf-b50").inner_text()
+          and "接受「音GO」" in D.locator("#mai-friend").inner_text())
+    D.locator("#mf-b50").click()
+    D.wait_for_selector("#mai-friend .busy")
+    j = cloud.get("jobs/g1") or {}
+    check("代抓：按下後送出抓成績的工作", j.get("type") == "b50" and j.get("status") == "queued", str(j))
+    now = D.evaluate("()=>Date.now()")
+    cloud["users/g1/mai/b50"] = {"at": now, "data": json.dumps({
+        "v": 1, "at": now, "name": "好友代抓", "rating": 13000, "scores": [], "new": [], "src": "friend",
+        "hist": [[now, 13000]]})}
+    cloud["jobs/g1"] = {**j, "status": "done", "msg": "已更新"}
+    D.wait_for_function("()=>(document.querySelector('#b50 .b50-name')||{}).textContent==='好友代抓'", timeout=8000)
+    check("代抓：做完會自動拿到成績、標明是代抓的", "代抓" in D.locator("#b50").inner_text()
+          and D.evaluate("()=>JSON.parse(localStorage.getItem('maimai:mai')).src") == "friend")
+    D.wait_for_selector("#mf-b50")
+    check("代抓：剛更新完「更新 B50」要等冷卻時間", "更新 B50" in D.locator("#mf-b50").inner_text()
+          and D.locator("#mf-b50").is_disabled() and "分鐘後" in D.locator("#mai-friend").inner_text())
+    D.context.close()
 
     # ---------- 🎵 B50（假的 maimai DX NET，跑真的書籤工具） ----------
     songs = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "songs.json"),
