@@ -499,14 +499,14 @@ function renderLibrary(el, S) {
   refreshLib();
 }
 
-function sheetRowHTML(x, i) {
+function sheetRowHTML(x, i, extra) {
   const { s, sh, v } = x,
     designer = mai.songs.des[sh.des];
   return `<button class="b50-row mai-lrow" data-s="${s.i}" data-i="${s.sheets.indexOf(sh)}">
     ${i == null ? '' : `<span class="b50-no">${i + 1}</span>`}${coverImg(s.img)}
     <div class="b50-info"><div class="b50-title">${esc(s.title)}</div>
       <div class="b50-meta"><span class="b50-diff" style="background:${diffColor(sh)}">${esc(diffName(sh))}</span>
-      ${TYPE_NAMES[sh.t]} · Lv ${esc(v.lv)} · ${esc(mai.songs.vers[v.ver] ? mai.songs.vers[v.ver][1] : '')}${designer ? ' · ' + esc(designer) : ''}</div></div>
+      ${TYPE_NAMES[sh.t]} · Lv ${esc(v.lv)} · ${esc(mai.songs.vers[v.ver] ? mai.songs.vers[v.ver][1] : '')}${designer ? ' · ' + esc(designer) : ''}</div>${extra ? `<div class="mai-extra">${extra}</div>` : ''}</div>
     <div class="b50-score"><b>${sh.t === 2 ? esc(v.lv) : constText(v.c, v.est)}</b><small>${sh.t === 2 ? '等級' : '定數'}</small></div>
   </button>`;
 }
@@ -718,10 +718,89 @@ function openDraw(again) {
   if (!again || !d.open) d.showModal();
 }
 
+/* ---- �️ 段位：段位認定／オトモダチ対戦的課題曲，分國際版、日版（資料來自 arcade-songs） ---- */
+const DAN_KINDS = [
+  ['dan', '段位認定'],
+  ['friend', '友人對戰'],
+];
+function danExtra(s, sh, note) {
+  const mine = sh.t < 2 && myScore(s.title, ['dx', 'std'][sh.t], sh.d),
+    parts = [];
+  if (note) parts.push(`對手 <b>${esc(note)}</b>`);
+  if (mine) parts.push(`你的成績 <b>${mine[3].toFixed(4)}%</b>`);
+  return parts.join(' · ');
+}
+function renderDan(el, S) {
+  const f = (mai.f = mai.f || { ...DEFAULT_F, ...LS.get('maiFilter', {}) }),
+    region = f.region === 'jp' ? 'jp' : 'intl',
+    ri = region === 'jp' ? 0 : 1,
+    kind = (mai.danKind = mai.danKind || LS.get('danKind', 'dan')),
+    courses = S.dan.filter(c => c[1] === region && c[2] === kind),
+    course = courses.find(c => c[0] === (mai.danVer || LS.get('danVer', ''))) || courses[0];
+  const sections = course
+    ? course[3]
+        .map(([title, desc, sheets]) => {
+          const rows = sheets
+            .map(([si, j, note]) => {
+              if (si < 0)
+                return `<div class="b50-row"><div class="b50-info"><div class="b50-title">${esc(String(j).split('|')[0])}</div><div class="b50-meta">歌曲資料裡找不到這個譜面</div></div></div>`;
+              const s = S.songs[si],
+                sh = s.sheets[j];
+              return sheetRowHTML({ s, sh, v: sh.v[ri] }, null, danExtra(s, sh, note));
+            })
+            .join('');
+          return `<h3 class="b50-h mai-lvh">${esc(title)}${desc ? ` <small>${esc(desc)}</small>` : ''}</h3>${rows}`;
+        })
+        .join('')
+    : '<div class="empty">這個版本沒有資料</div>';
+  el.innerHTML = `<div class="mai-dan-bar">
+      <div class="chips">${[
+        ['intl', '國際版'],
+        ['jp', '日版'],
+      ]
+        .map(([v, n]) => maiChip('data-dr', 'region', v, region === v, n, ' rad'))
+        .join('')}</div>
+      <div class="chips">${DAN_KINDS.map(([v, n]) =>
+        maiChip('data-dk', 'kind', v, kind === v, n, ' rad'),
+      ).join('')}</div>
+      <select id="dan-ver" aria-label="版本">${courses.map(c => opt(c[0], c[0], course && course[0])).join('')}</select>
+    </div>
+    <p class="cq-hint">${
+      kind === 'dan'
+        ? '❤ 開始的生命值｜GREAT／GOOD／MISS 各扣多少｜每首打完回復多少。'
+        : '「對手」是對戰對手的評級，要比它高才贏。'
+    }點譜面看各評級 Rating。</p>
+    ${sections}
+    <p class="cq-hint">課題曲資料：arcade-songs</p>`;
+  el.querySelectorAll('[data-dr]').forEach(
+    c =>
+      (c.onclick = () => {
+        f.region = c.dataset.v;
+        LS.set('maiFilter', f);
+        renderDan(el, S);
+      }),
+  );
+  el.querySelectorAll('[data-dk]').forEach(
+    c =>
+      (c.onclick = () => {
+        mai.danKind = c.dataset.v;
+        LS.set('danKind', mai.danKind);
+        renderDan(el, S);
+      }),
+  );
+  el.querySelector('#dan-ver').onchange = e => {
+    mai.danVer = e.target.value;
+    LS.set('danVer', mai.danVer);
+    renderDan(el, S);
+  };
+  bindRows(el);
+}
+
 /* ---- 🎵 maimai 頁：子分頁 ---- */
 const MAI_TABS = [
   ['b50', '🏅 B50'],
   ['lib', '📚 曲庫'],
+  ['dan', '🎖️ 段位'],
 ];
 function renderMai(el) {
   let tab = mai.tab || LS.get('maiTab', 'b50');
@@ -742,7 +821,7 @@ function renderMai(el) {
   loadSongs()
     .then(S => {
       if (state.view !== 'b50' || mai.tab !== tab) return;
-      (tab === 'b50' ? renderB50 : renderLibrary)(body, S);
+      ({ b50: renderB50, lib: renderLibrary, dan: renderDan })[tab](body, S);
     })
     .catch(() => (body.innerHTML = '<div class="empty">歌曲資料載入失敗（需要網路）</div>'));
 }

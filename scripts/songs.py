@@ -8,12 +8,15 @@
     估計 1＝定數還沒公布、用等級估的；物量 [tap, hold, slide, touch, break, total]
     地區這些位元：1 日版、2 國際版、4 美國版、8 中國版；國際版和日版不同時是 [等級, 定數, 估計, 版本]，相同是 0
   羅馬拼音已正規化（與 mai-bot 相同、和 mai.js 的 normRomaji 一致），給搜尋用拼音找日文歌名。
-用法：pip install pykakasi && python scripts/songs.py
+  "dan": [[版本, "jp"|"intl", "dan"|"friend", [[標題, 說明, [[歌曲索引, 譜面索引, 備註]…]]…]]]
+    段位認定／オトモダチ対戦的課題曲（來源 arcade-songs gallery.yaml）；對不到的譜面是 [-1, "歌名|類型|難度", 備註]
+用法：pip install pykakasi pyyaml && python scripts/songs.py
 """
 import paths
 import json, os, re
 import requests
 import pykakasi
+import yaml
 
 # 統一黑本式／訓令式與長音（與 mai-bot song_data.py、templates/mai.js 相同）
 ROMAJI_RULES = [
@@ -31,10 +34,36 @@ def romaji(title):
     return text
 
 URL = "https://dp4p6x0xfi5o9.cloudfront.net/maimai/data.json"
+GALLERY = "https://dp4p6x0xfi5o9.cloudfront.net/maimai/gallery.yaml"
 OUT = os.path.join(paths.DATA, "songs.json")
 DIFFS = ["basic", "advanced", "expert", "master", "remaster"]
 TYPES = ["dx", "std", "utage"]
 REGIONS = ["jp", "intl", "usa", "cn"]
+DAN_TITLE = re.compile(r"^(.+?) (段位認定|オトモダチ対戦)(（海外版）)?$")
+
+
+def dan_courses(d):
+    """arcade-songs 的「段位歌單」→ 只留段位認定與オトモダチ対戦，譜面換成 songs 裡的索引"""
+    idx = {}
+    for i, s in enumerate(d["songs"]):
+        for j, sh in enumerate(s["sheets"]):
+            idx.setdefault(f"{s['songId']}|{sh['type']}|{sh['difficulty']}", (i, j))
+    out = []
+    for lst in yaml.safe_load(requests.get(GALLERY, timeout=60).text):
+        m = DAN_TITLE.match(lst.get("title", ""))
+        if not m or lst.get("isHidden"):
+            continue
+        sections = []
+        for sec in lst.get("sections") or []:
+            notes = sec.get("sheetDescriptions") or []
+            sheets = []
+            for k, expr in enumerate(sec.get("sheets") or []):
+                note = notes[k] if k < len(notes) else ""
+                sheets.append([*idx[expr], note] if expr in idx else [-1, expr, note])
+            sections.append([sec.get("title", ""), sec.get("description", ""), sheets])
+        out.append([m.group(1), "intl" if m.group(3) else "jp",
+                    "dan" if m.group(2) == "段位認定" else "friend", sections])
+    return out
 
 
 def main():
@@ -84,12 +113,15 @@ def main():
         ])
     # 新曲枠＝國際版最新的兩個版本；書籤工具讀得到官網新曲清單時以官網為準
     new = [vers[i][0] for i in sorted(intl_vers)][-2:]
+    dan = dan_courses(d)
     out = {"updated": d.get("updateTime", "")[:10], "new": new, "cats": cats, "vers": vers, "des": des,
-           "songs": songs}
+           "songs": songs, "dan": dan}
     with open(OUT, "w", encoding="utf-8", newline="\n") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
     n_sheets = sum(len(s[10]) for s in songs)
-    print(f"{len(songs)} 首、{n_sheets} 個譜面；新曲版本 {new}；{os.path.getsize(OUT) // 1024} KB → data/songs.json")
+    miss = sum(1 for c in dan for sec in c[3] for x in sec[2] if x[0] < 0)
+    print(f"{len(songs)} 首、{n_sheets} 個譜面；新曲版本 {new}；段位／友人對戰 {len(dan)} 組"
+          f"（{miss} 個譜面對不到）；{os.path.getsize(OUT) // 1024} KB → data/songs.json")
 
 
 if __name__ == "__main__":

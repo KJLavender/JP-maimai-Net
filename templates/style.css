@@ -1632,6 +1632,23 @@ button.b50-row:hover {
   padding-bottom: 4px;
   border-bottom: 2px solid var(--line);
 }
+.mai-dan-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+.mai-dan-bar .chips {
+  flex: none;
+}
+.mai-extra {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.mai-extra b {
+  color: var(--magenta);
+}
 .mai-sum td,
 .mai-sum th {
   text-align: center;
