@@ -1410,6 +1410,15 @@ noscript {
 }
 
 /* ---------- 🎵 maimai 工具 ---------- */
+/* maimai 頁用不到找店的搜尋與篩選 */
+body[data-view='b50'] .sub,
+body[data-view='b50'] .qrow,
+body[data-view='b50'] .filters {
+  display: none;
+}
+.mai-rt th {
+  white-space: nowrap;
+}
 .mai-tabs {
   display: flex;
   gap: 4px;
@@ -1463,44 +1472,147 @@ button.b50-row:hover {
 .mai-input:focus {
   border-color: var(--magenta);
 }
-.mai-song {
-  display: flex;
-  gap: 12px;
-  padding: 12px;
-  margin-bottom: 8px;
+.mai-filter {
+  margin-bottom: 10px;
+  padding: 10px 14px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
   box-shadow: var(--shadow);
 }
-.mai-song .b50-cover {
-  width: 64px;
-  height: 64px;
+.mai-filter summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.9rem;
 }
-.mai-sheets {
+.mai-filter[open] summary {
+  margin-bottom: 8px;
+}
+.mai-frow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.mai-frow > label {
+  width: 4.5em;
+  flex: none;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--muted);
+  padding-top: 7px;
+}
+.mai-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  color: var(--muted);
+}
+.mai-range input {
+  width: 6.5em;
+  font: 0.84rem var(--f);
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+.mai-tool {
   display: flex;
   flex-wrap: wrap;
+  gap: 8px;
   align-items: center;
-  gap: 5px;
-  margin-top: 7px;
+  margin-bottom: 4px;
 }
-.mai-kind {
-  font-size: 0.68rem;
-  font-weight: 800;
-  color: var(--muted);
-  width: 2.6em;
+.mai-tool .iconbtn {
+  color: var(--text);
+  font-weight: 700;
 }
-.mai-sheet {
+.mai-views {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface2);
+  border-radius: 10px;
+}
+.mai-views button {
   border: 0;
-  border-radius: 7px;
-  padding: 4px 8px;
-  background: var(--dc);
-  color: #fff;
-  font: 700 0.7rem var(--f);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: 700 0.8rem var(--f);
+  padding: 6px 10px;
   cursor: pointer;
 }
-.mai-sheet b {
-  font-size: 0.82rem;
+.mai-views button[data-on='1'] {
+  background: var(--surface);
+  color: var(--magenta);
+  box-shadow: var(--shadow);
+}
+.mai-tool .btn {
+  margin-left: auto;
+  border: 0;
+  cursor: pointer;
+}
+.mai-more {
+  display: block;
+  width: 100%;
+  margin: 8px 0;
+  cursor: pointer;
+}
+.mai-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+}
+.mai-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.mai-tile:hover {
+  border-color: var(--magenta);
+}
+.mai-tile-img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.mai-tile-t {
+  font-size: 0.74rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mai-tile-lv {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.mai-tile-lv i {
+  font-style: normal;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #fff;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+.mai-sum td,
+.mai-sum th {
+  text-align: center;
 }
 .mai-roll {
   font-size: 1rem;
@@ -1508,8 +1620,48 @@ button.b50-row:hover {
   border: 0;
   cursor: pointer;
 }
-#mai-pick {
-  margin-top: 12px;
+.mai-drawn {
+  margin: 4px 0 10px;
+}
+.dlg.dlg-wide {
+  width: min(560px, calc(100% - 20px));
+  max-height: calc(100% - 40px);
+}
+.mai-avail {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.mai-avail .on {
+  color: var(--green);
+  font-weight: 700;
+}
+.mai-sheets-t {
+  margin-top: 10px;
+  font-size: 0.8rem;
+}
+.mai-sheets-t td,
+.mai-sheets-t th {
+  padding: 6px 5px;
+}
+.mai-sheets-t tr.mai-tap {
+  cursor: pointer;
+}
+.mai-sheets-t tr.mai-tap:hover td {
+  background: rgba(229, 48, 126, 0.08);
+}
+.mai-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin: 4px 0 8px;
+}
+.mai-notes b {
+  color: var(--text);
 }
 .mai-chart-head {
   display: flex;

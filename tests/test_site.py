@@ -579,8 +579,25 @@ export const serverTimestamp = () => Date.now();
     # ---------- 🎵 B50（假的 maimai DX NET，跑真的書籤工具） ----------
     songs = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "songs.json"),
                            encoding="utf-8"))
-    keys = Counter((s[0], s[1]) for s in songs["songs"])
-    ok = [s for s in songs["songs"] if s[4][3] and not s[5] & 8 and keys[(s[0], s[1])] == 1]
+
+    def view_of(sh, intl=True):   # [等級, 定數, 估計, 版本]；國際版有不同數值時用國際版
+        return sh[9] if intl and sh[9] else [sh[2], sh[3], sh[4], sh[8]]
+
+    # 和 mai.js 一樣轉成 B50 用的舊格式：[歌名, 種類, 版本, 封面, [5 定數], 估計遮罩]
+    legacy = []
+    for s in songs["songs"]:
+        for t, kind in ((0, "dx"), (1, "std")):
+            own = [sh for sh in s[10] if sh[0] == t and isinstance(sh[1], int)]
+            if not own:
+                continue
+            consts, est = [None] * 5, 0
+            for sh in own:
+                v = view_of(sh)
+                consts[sh[1]] = v[1]
+                est |= v[2] << sh[1]
+            legacy.append([s[0], kind, songs["vers"][view_of(own[0])[3]][0], s[6], consts, est])
+    keys = Counter((s[0], s[1]) for s in legacy)
+    ok = [s for s in legacy if s[4][3] and not s[5] & 8 and keys[(s[0], s[1])] == 1]
     new_s = next(s for s in ok if s[2] in songs["new"])
     old_s = [s for s in ok if s[2] not in songs["new"]][:2]
     plays = [(old_s[0], 100.6, "ap"), (old_s[1], 99.2, ""), (new_s, 100.1, "fc")]
@@ -660,32 +677,85 @@ export const serverTimestamp = () => Date.now();
           and "你的成績" in dlg.inner_text())
     dlg.locator(".dlg-x").click()
 
-    page.locator(".mai-tabs button", has_text="查歌").click()
-    page.fill("#mai-q", "senbonzakura")
-    check("查歌：羅馬拼音找得到日文歌名", "千本桜" in page.locator("#mai-res").inner_text())
-    page.fill("#mai-q", "千本桜")
-    sk = next(s for s in songs["songs"] if s[0] == "千本桜" and s[1] == "dx")
-    page.locator(".mai-song").first.locator(".mai-sheet", has_text="MASTER").first.click()
-    sss = page.locator("#chart[open] .mai-rt tr", has_text="SSS+").inner_text()
-    check("查歌：點定數看各評級 Rating（SSS+ 正確）", str(ra(sk[4][3], 100.5, "")) in sss, sss)
-    page.locator("#chart .dlg-x").click()
+    # ---------- 📚 曲庫（參考 arcade-songs） ----------
+    def lvv(l):
+        m = re.match(r"\d+", l)
+        return int(m.group()) + (0.6 if "+" in l else 0) if m else None
+
+    def count_where(lv=None, bit=2):
+        return sum(1 for s in songs["songs"] for sh in s[10] if sh[7] & bit
+                   and (lv is None or lvv(view_of(sh, bit == 2)[0]) == lvv(lv)))
+
+    def shown_count():
+        return int(re.search(r"符合 (\d+) 個譜面", page.locator("#mai-res .count").inner_text()).group(1))
+
+    def nums(sel):   # 列表右邊的定數；宴譜面顯示等級（例：14+?）
+        return [float(x.lstrip("≈")) if re.fullmatch(r"≈?\d+\.\d", x) else lvv(x)
+                for x in page.locator(sel).all_inner_texts()]
+
+    page.locator(".mai-tabs button", has_text="曲庫").click()
+    page.wait_for_selector("#mai-res .mai-lrow")
+    check("曲庫：預設列出國際版全部譜面", shown_count() == count_where(), f"{shown_count()} vs {count_where()}")
+    check("maimai 頁：不顯示找店的搜尋與篩選", not page.locator("#q").is_visible()
+          and not page.locator("#gamerow").is_visible())
+    # 找一首國際版有 DX MASTER、歌名是日文的歌，用羅馬拼音搜
+    si, mi = next((i, j) for i, s in enumerate(songs["songs"]) if re.search(r"[\u3040-\u30ff\u4e00-\u9fff]", s[0])
+                  and len(s[7]) >= 8 for j, sh in enumerate(s[10]) if sh[0] == 0 and sh[1] == 3 and sh[7] & 2)
+    page.fill("#mai-q", songs["songs"][si][7])
+    check("曲庫：羅馬拼音找得到日文歌名", songs["songs"][si][0] in page.locator("#mai-res").inner_text(),
+          songs["songs"][si][7])
+    page.locator(f'#mai-res .mai-lrow[data-s="{si}"][data-i="{mi}"]').click()
+    dlg = page.locator("#chart[open]")
+    sss = dlg.locator(".mai-rt tr", has_text="SSS+").inner_text()
+    c_master = view_of(songs["songs"][si][10][mi])[1]
+    check("曲庫：點譜面看各評級 Rating（SSS+ 正確）、譜師與物量", str(ra(c_master, 100.5, "")) in sss
+          and "TAP" in dlg.inner_text(), sss)
+    dlg.locator(".dlg-x").click()
+    page.fill("#mai-q", "")
+
+    page.locator("#mai-filter summary").click()
+    page.select_option('select[data-f="lvMin"]', "1")
+    page.select_option('select[data-f="lvMax"]', "1")
+    check("曲庫：低等級也查得到（Lv 1）", shown_count() == count_where("1") > 0, str(shown_count()))
+    page.select_option('select[data-f="lvMin"]', "14+")
+    page.select_option('select[data-f="lvMax"]', "14+")
+    consts = nums("#mai-res .b50-score b")
+    check("曲庫：等級 14+ 只列 14.6～14.9、定數高到低", shown_count() == count_where("14+")
+          and all(14.6 <= c <= 14.9 for c in consts) and consts == sorted(consts, reverse=True),
+          f"{shown_count()} vs {count_where('14+')} {consts[:5]}")
+    page.locator("#mai-filter [data-r='region'][data-v='jp']").click()
+    check("曲庫：切換日版用日版的等級／收錄", shown_count() == count_where("14+", 1)
+          and "日版" in page.locator("#mai-res .count").inner_text(), f"{shown_count()} vs {count_where('14+', 1)}")
+    page.locator("#mai-filter [data-r='region'][data-v='intl']").click()
+
+    page.locator(".mai-views button", has_text="統計").click()
+    check("曲庫：統計檢視合計和篩選結果一致",
+          page.locator(".mai-sum tr").last.locator("td").last.inner_text() == str(count_where("14+")))
+    page.locator(".mai-views button", has_text="封面").click()
+    n_songs = len({i for i, s in enumerate(songs["songs"]) for sh in s[10]
+                   if sh[7] & 2 and lvv(view_of(sh)[0]) == 14.6})
+    check("曲庫：封面檢視一首歌一格", page.locator(".mai-tile").count() == min(n_songs, 60),
+          f"{page.locator('.mai-tile').count()} vs {n_songs}")
+    page.locator(".mai-tile").first.click()
+    song = page.locator("#song[open]")
+    check("曲庫：點歌曲看所有譜面（譜師、物量）", song.is_visible() and song.locator(".mai-sheets-t tr").count() > 2)
+    song.locator("#song-fav").click()
+    check("我的清單：加入後按鈕變「已在」", "已在" in song.locator("#song-fav").inner_text())
+    song.locator(".dlg-x").click()
+    page.locator("#mai-filter [data-b='mine']").click()
+    check("我的清單：只看清單裡的歌", page.locator(".mai-tile").count() == 1)
+    page.locator("#mai-filter [data-b='mine']").click()
+
+    page.locator(".mai-views button", has_text="譜面").click()
+    page.locator("#mai-draw").click()
+    page.locator("#draw [data-n='draw'][data-v='3']").click()
+    got = nums("#draw-res .b50-score b")
+    check("抽歌：從篩選結果抽 3 首", len(got) == 3 and all(14.6 <= c <= 14.9 for c in got), str(got))
+    page.locator("#draw .dlg-x").click()
     page.reload(wait_until="networkidle")
-    page.wait_for_selector("#mai-q")
-    check("查歌：重新整理後停在同一個子分頁", page.locator(".mai-tabs [data-on='1']").inner_text() == "🔍 查歌")
-
-    page.locator(".mai-tabs button", has_text="定數表").click()
-    page.locator(".mai-levels .chip", has_text="14+").click()
-    want14 = sum(1 for s in songs["songs"] for c in s[4] if c is not None and 146 <= round(c * 10) < 150)
-    consts = page.locator("#b50 .b50-score b").all_inner_texts()
-    check("定數表：14+ 只列 14.6～14.9、由高到低", len(consts) == want14 and consts[0].endswith("14.9")
-          and consts[-1].endswith("14.6"), f"{len(consts)} vs {want14}")
-
-    page.locator(".mai-tabs button", has_text="抽一首").click()
-    page.locator(".mai-levels .chip", has_text="13+").click()   # 取消預設的 13+
-    page.locator(".mai-levels .chip", has_text="15").click()
-    page.locator("#mai-roll").click()
-    got = page.locator("#mai-pick .b50-score b").inner_text()
-    check("抽一首：抽到選的等級", got.lstrip("≈").startswith("15."), got)
+    page.wait_for_selector("#mai-res .mai-lrow")
+    check("曲庫：重新整理後分頁與篩選都還在", page.locator(".mai-tabs [data-on='1']").inner_text() == "📚 曲庫"
+          and shown_count() == count_where("14+"))
     ctx.close()
 
     # ---------- 營業狀態（固定時鐘） ----------
