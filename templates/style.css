@@ -1562,53 +1562,75 @@ button.b50-row:hover {
   margin: 8px 0;
   cursor: pointer;
 }
-.mai-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 10px;
-}
-.mai-tile {
+.mai-song {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 6px;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
   box-shadow: var(--shadow);
 }
-.mai-tile:hover {
-  border-color: var(--magenta);
+.mai-song-c {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  flex: none;
+  align-self: flex-start;
 }
-.mai-tile-img {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 8px;
-  object-fit: cover;
+.mai-song-c .b50-cover {
+  width: 64px;
+  height: 64px;
 }
-.mai-tile-t {
-  font-size: 0.74rem;
-  font-weight: 700;
+.mai-song-t {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: 700 0.9rem var(--f);
+  text-align: left;
+  cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mai-tile-lv {
+.mai-sheets {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
 }
-.mai-tile-lv i {
-  font-style: normal;
-  font-size: 0.62rem;
-  font-weight: 700;
+.mai-kind {
+  font-size: 0.66rem;
+  font-weight: 800;
+  color: var(--muted);
+  width: 2.4em;
+}
+.mai-sheet {
+  border: 0;
+  border-radius: 7px;
+  padding: 3px 7px;
+  background: var(--dc);
   color: #fff;
-  padding: 0 4px;
-  border-radius: 4px;
+  font: 700 0.66rem var(--f);
+  cursor: pointer;
+}
+.mai-sheet b {
+  font-size: 0.8rem;
+}
+/* 不符合篩選的難度淡化，但還是點得到 */
+.mai-sheet.dim {
+  opacity: 0.35;
+}
+.mai-lvh {
+  margin: 14px 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--line);
 }
 .mai-sum td,
 .mai-sum th {

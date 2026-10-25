@@ -413,12 +413,13 @@ const SORTS = [
   ['title', '歌名'],
 ];
 const VIEWS = [
-  ['sheet', '📄 譜面'],
-  ['grid', '🖼️ 封面'],
+  ['sheet', '📋 定數表'],
+  ['song', '🎵 歌曲'],
   ['sum', '📊 統計'],
 ];
 function renderLibrary(el, S) {
   const f = (mai.f = { ...DEFAULT_F, ...LS.get('maiFilter', {}), ...(mai.f || {}) });
+  if (!VIEWS.some(v => v[0] === f.view)) f.view = 'song';
   el.innerHTML = `<input id="mai-q" class="mai-input" type="search" placeholder="搜尋歌名、藝術家、譜師；日文歌名可打羅馬拼音" autocomplete="off" value="${esc(f.q)}">
     ${filterHTML(S, f)}
     <div class="mai-tool">
@@ -510,25 +511,73 @@ function sheetRowHTML(x, i) {
   </button>`;
 }
 function bindRows(el) {
-  el.querySelectorAll('.mai-lrow').forEach(
+  el.querySelectorAll('[data-s]').forEach(
     b =>
       (b.onclick = () => {
-        const s = mai.songs.songs[+b.dataset.s],
-          sh = s.sheets[+b.dataset.i];
+        const s = mai.songs.songs[+b.dataset.s];
+        if (b.dataset.i == null) return openSong(s);
+        const sh = s.sheets[+b.dataset.i];
         sh.t === 2 ? openSong(s) : openChart(sheetChart(sh));
       }),
   );
-  el.querySelectorAll('.mai-tile').forEach(
-    b => (b.onclick = () => openSong(mai.songs.songs[+b.dataset.s])),
-  );
+}
+// 「13+?」「13+」都算 13+；宴的「*」沒有等級
+const levelKey = lv => {
+  const l = levelValue(lv);
+  return isNaN(l) ? '—' : LEVELS.find(x => levelValue(x) === l) || lv;
+};
+const DIFF_SHORT = ['BAS', 'ADV', 'EXP', 'MAS', 'Re:M'];
+/* 🎵 歌曲：一首一張卡，列出各難度定數；符合篩選的譜面亮起來 */
+function songCardHTML(s, hit, ri) {
+  const S = mai.songs,
+    bit = ri ? 2 : 1;
+  const rows = [0, 1, 2]
+    .map(t => {
+      const shs = s.sheets.filter(sh => sh.t === t && (mai.f.all || sh.reg & bit));
+      if (!shs.length) return '';
+      return `<div class="mai-sheets"><span class="mai-kind">${TYPE_NAMES[t]}</span>${shs
+        .map(sh => {
+          const v = sh.v[ri];
+          return `<button class="mai-sheet${hit.has(sh) ? '' : ' dim'}" style="--dc:${diffColor(sh)}" data-s="${s.i}" data-i="${s.sheets.indexOf(sh)}" title="${esc(diffName(sh))} Lv ${esc(v.lv)}">${esc(sh.t === 2 ? sh.d : DIFF_SHORT[sh.d])} <b>${sh.t === 2 ? esc(v.lv) : constText(v.c, v.est)}</b></button>`;
+        })
+        .join('')}</div>`;
+    })
+    .join('');
+  const ver = S.vers[s.ver];
+  return `<div class="mai-song"><button class="mai-song-c" data-s="${s.i}">${coverImg(s.img)}</button>
+    <div class="b50-info"><button class="mai-song-t" data-s="${s.i}">${esc(s.title)}</button>
+      <div class="b50-meta">${esc(s.artist)}${ver ? ' · ' + esc(ver[1]) : ''}${s.bpm ? ' · BPM ' + s.bpm : ''}</div>${rows}</div></div>`;
+}
+/* 📋 定數表：依等級分段、段內定數高到低（mai-bot /c） */
+function levelTableHTML(list, f) {
+  const dir = f.desc ? -1 : 1,
+    lv = x => levelValue(x.v.lv) || 0,
+    sorted = [...list].sort(
+      (a, b) =>
+        dir * (lv(a) - lv(b)) || dir * (a.v.c - b.v.c) || a.s.title.localeCompare(b.s.title),
+    ),
+    counts = new Map();
+  for (const x of sorted) {
+    const k = levelKey(x.v.lv);
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
+  let last = null,
+    out = '';
+  for (const x of sorted.slice(0, mai.shown)) {
+    const k = levelKey(x.v.lv);
+    if (k !== last)
+      out += `<h3 class="b50-h mai-lvh">${k === '—' ? '宴（無等級）' : 'Lv ' + esc(k)} <small>${counts.get(k)} 個譜面</small></h3>`;
+    last = k;
+    out += sheetRowHTML(x);
+  }
+  return out;
 }
 function summaryHTML(list) {
   const cols = [...DIFF_NAMES, '宴'],
     by = new Map(),
     total = cols.map(() => 0);
   for (const { sh, v } of list) {
-    const l = levelValue(v.lv),
-      row = isNaN(l) ? '—' : LEVELS.find(x => levelValue(x) === l) || v.lv,
+    const row = levelKey(v.lv),
       c = sh.t === 2 ? 5 : sh.d;
     if (!by.has(row))
       by.set(
@@ -563,6 +612,8 @@ function refreshLib() {
   document.getElementById('mai-fcount').textContent = n ? `（${n}）` : '';
   document.getElementById('mai-dir').textContent = f.desc ? '↓' : '↑';
   document.getElementById('mai-sort').value = f.sort;
+  // 定數表固定依等級／定數排，只能切換方向
+  document.getElementById('mai-sort').hidden = f.view === 'sheet';
   document
     .querySelectorAll('.mai-views button')
     .forEach(b => (b.dataset.on = b.dataset.v === f.view ? 1 : 0));
@@ -576,35 +627,14 @@ function refreshLib() {
       ? `<button class="btn ghost mai-more" id="mai-more">顯示更多（還有 ${left} 個）</button>`
       : '';
   if (f.view === 'sum') res.innerHTML = head + summaryHTML(list);
-  else if (f.view === 'grid') {
-    const show = songs.slice(0, mai.shown),
+  else if (f.view === 'song') {
+    const n = Math.ceil(mai.shown / 2),
+      show = songs.slice(0, n),
       ri = regionIdx(),
-      matched = new Map();
-    for (const x of list) {
-      if (!matched.has(x.s)) matched.set(x.s, []);
-      matched.get(x.s).push(x);
-    }
+      hit = new Set(list.map(x => x.sh));
     res.innerHTML =
-      head +
-      `<div class="mai-grid">${show
-        .map(
-          s => `<button class="mai-tile" data-s="${s.i}">${coverImg(s.img, 'mai-tile-img')}
-          <span class="mai-tile-t">${esc(s.title)}</span>
-          <span class="mai-tile-lv">${matched
-            .get(s)
-            .map(({ sh }) => `<i style="background:${diffColor(sh)}">${esc(sh.v[ri].lv)}</i>`)
-            .join('')}</span></button>`,
-        )
-        .join('')}</div>` +
-      more(songs.length - show.length);
-  } else
-    res.innerHTML =
-      head +
-      list
-        .slice(0, mai.shown)
-        .map(x => sheetRowHTML(x))
-        .join('') +
-      more(list.length - mai.shown);
+      head + show.map(s => songCardHTML(s, hit, ri)).join('') + more(songs.length - show.length);
+  } else res.innerHTML = head + levelTableHTML(list, f) + more(list.length - mai.shown);
   const m = document.getElementById('mai-more');
   if (m)
     m.onclick = () => {

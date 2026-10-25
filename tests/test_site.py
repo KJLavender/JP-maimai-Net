@@ -723,6 +723,11 @@ export const serverTimestamp = () => Date.now();
     check("曲庫：等級 14+ 只列 14.6～14.9、定數高到低", shown_count() == count_where("14+")
           and all(14.6 <= c <= 14.9 for c in consts) and consts == sorted(consts, reverse=True),
           f"{shown_count()} vs {count_where('14+')} {consts[:5]}")
+    page.select_option('select[data-f="lvMax"]', "15")
+    heads = [h.split(" ")[1] for h in page.locator("#mai-res .mai-lvh").all_inner_texts()]
+    want_heads = [l for l in ("15", "14+") if count_where(l)]
+    check("定數表：依等級分段（高的在前）", heads[:len(want_heads)] == want_heads, str(heads))
+    page.select_option('select[data-f="lvMax"]', "14+")
     page.locator("#mai-filter [data-r='region'][data-v='jp']").click()
     check("曲庫：切換日版用日版的等級／收錄", shown_count() == count_where("14+", 1)
           and "日版" in page.locator("#mai-res .count").inner_text(), f"{shown_count()} vs {count_where('14+', 1)}")
@@ -731,22 +736,27 @@ export const serverTimestamp = () => Date.now();
     page.locator(".mai-views button", has_text="統計").click()
     check("曲庫：統計檢視合計和篩選結果一致",
           page.locator(".mai-sum tr").last.locator("td").last.inner_text() == str(count_where("14+")))
-    page.locator(".mai-views button", has_text="封面").click()
+    page.locator(".mai-views button", has_text="歌曲").click()
     n_songs = len({i for i, s in enumerate(songs["songs"]) for sh in s[10]
                    if sh[7] & 2 and lvv(view_of(sh)[0]) == 14.6})
-    check("曲庫：封面檢視一首歌一格", page.locator(".mai-tile").count() == min(n_songs, 60),
-          f"{page.locator('.mai-tile').count()} vs {n_songs}")
-    page.locator(".mai-tile").first.click()
+    check("歌曲檢視：一首歌一張卡、列出各難度定數", page.locator(".mai-song").count() == min(n_songs, 30)
+          and page.locator(".mai-song").first.locator(".mai-sheet").count() >= 4
+          and page.locator(".mai-song").first.locator(".mai-sheet:not(.dim)").count() >= 1,
+          f"{page.locator('.mai-song').count()} vs {n_songs}")
+    page.locator(".mai-song-t").first.click()
     song = page.locator("#song[open]")
     check("曲庫：點歌曲看所有譜面（譜師、物量）", song.is_visible() and song.locator(".mai-sheets-t tr").count() > 2)
     song.locator("#song-fav").click()
     check("我的清單：加入後按鈕變「已在」", "已在" in song.locator("#song-fav").inner_text())
     song.locator(".dlg-x").click()
     page.locator("#mai-filter [data-b='mine']").click()
-    check("我的清單：只看清單裡的歌", page.locator(".mai-tile").count() == 1)
+    check("我的清單：只看清單裡的歌", page.locator(".mai-song").count() == 1)
+    page.locator(".mai-song .mai-sheet:not(.dim)").first.click()
+    check("歌曲檢視：點難度看各評級 Rating", page.locator("#chart[open] .mai-rt").is_visible())
+    page.locator("#chart .dlg-x").click()
     page.locator("#mai-filter [data-b='mine']").click()
 
-    page.locator(".mai-views button", has_text="譜面").click()
+    page.locator(".mai-views button", has_text="定數表").click()
     page.locator("#mai-draw").click()
     page.locator("#draw [data-n='draw'][data-v='3']").click()
     got = nums("#draw-res .b50-score b")
