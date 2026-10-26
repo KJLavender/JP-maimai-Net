@@ -815,11 +815,128 @@ function renderDan(el, S) {
   bindRows(el);
 }
 
+/* ---- ✈️ 日版限定：日版有、國際版沒有的歌和譜面（去日本前加進我的清單練） ---- */
+function jpOnlySongs(S) {
+  const out = [];
+  for (const s of S.songs) {
+    const sheets = s.sheets.filter(sh => sh.t < 2 && sh.reg & 1 && !(sh.reg & 2));
+    if (!sheets.length) continue;
+    out.push({
+      s,
+      sheets,
+      whole: !s.sheets.some(sh => sh.reg & 2),
+      ver: Math.max(...sheets.map(sh => sh.v[0].ver)),
+      top: Math.max(...sheets.map(sh => sh.v[0].c)),
+    });
+  }
+  return out;
+}
+const JP_KINDS = [
+  ['all', '全部'],
+  ['whole', '整首限定'],
+  ['part', '部分譜面'],
+];
+function renderJpOnly(el, S) {
+  const o = (mai.jp = mai.jp || { kind: 'all', lv: '', ...LS.get('maiJp', {}) }),
+    lv = o.lv ? levelValue(o.lv) : null,
+    all = jpOnlySongs(S),
+    list = all
+      .filter(x => o.kind === 'all' || x.whole === (o.kind === 'whole'))
+      .map(x => ({
+        ...x,
+        hit: x.sheets.filter(sh => lv == null || levelValue(sh.v[0].lv) >= lv),
+      }))
+      .filter(x => x.hit.length)
+      .sort((a, b) => b.ver - a.ver || b.top - a.top),
+    mine = myList(),
+    missing = list.filter(x => !mine.has(x.s.key)),
+    sheetsN = list.reduce((n, x) => n + x.hit.length, 0);
+  let last = null;
+  const rows = list
+    .map(x => {
+      const { s } = x,
+        on = mine.has(s.key),
+        ver = S.vers[x.ver] ? S.vers[x.ver][1] : '',
+        head = ver !== last ? `<h3 class="b50-h mai-lvh">${esc(ver)}</h3>` : '';
+      last = ver;
+      return `${head}<div class="mai-song" data-key="${esc(s.key)}"><button class="mai-song-c" data-s="${s.i}">${coverImg(s.img)}</button>
+      <div class="b50-info"><button class="mai-song-t" data-s="${s.i}">${esc(s.title)}</button>
+        <div class="b50-meta">${esc(s.artist)} · ${x.whole ? '<b>整首日版限定</b>' : '部分譜面限定'}</div>
+        <div class="mai-sheets">${x.hit
+          .map(
+            sh =>
+              `<button class="mai-sheet" style="--dc:${diffColor(sh)}" data-s="${s.i}" data-i="${s.sheets.indexOf(sh)}">${TYPE_NAMES[sh.t]} ${DIFF_SHORT[sh.d]} <b>${constText(sh.v[0].c, sh.v[0].est)}</b></button>`,
+          )
+          .join('')}</div></div>
+      <button class="iconbtn jp-fav" data-on="${on ? 1 : 0}" aria-label="${on ? '從我的清單移除' : '加入我的清單'}">${on ? '★' : '☆'}</button></div>`;
+    })
+    .join('');
+  el.innerHTML = `<p class="cq-hint">日版 maimai でらっくす 有、國際版沒有的歌和譜面（定數用日版）。去日本前加進「⭐ 我的清單」，到機廳照著練。</p>
+    <div class="mai-dan-bar">
+      <div class="chips">${JP_KINDS.map(([v, n]) => maiChip('data-jk', 'kind', v, o.kind === v, n, ' rad')).join('')}</div>
+      <select id="jp-lv" aria-label="最低等級">${opt('', '所有等級', o.lv)}${LEVELS.map(l => opt(l, l + ' 以上', o.lv)).join('')}</select>
+    </div>
+    <p class="count">${list.length} 首歌、${sheetsN} 個譜面${all.length !== list.length ? `（全部 ${all.length} 首）` : ''}</p>
+    <div class="cq-actions">
+      <button class="btn small" id="jp-addall"${missing.length ? '' : ' disabled'}>⭐ 全部加入我的清單（${missing.length} 首）</button>
+      <button class="btn ghost small" id="jp-mine">看我的清單</button>
+    </div>
+    ${rows || '<div class="empty">沒有符合的歌</div>'}`;
+  const save = () => {
+    LS.set('maiJp', o);
+    renderJpOnly(el, S);
+  };
+  el.querySelectorAll('[data-jk]').forEach(
+    c =>
+      (c.onclick = () => {
+        o.kind = c.dataset.v;
+        save();
+      }),
+  );
+  el.querySelector('#jp-lv').onchange = e => {
+    o.lv = e.target.value;
+    save();
+  };
+  el.querySelector('#jp-addall').onclick = () => {
+    LS.set('maiList', [...new Set([...myList(), ...missing.map(x => x.s.key)])]);
+    toast(`已把 ${missing.length} 首加入我的清單`);
+    renderJpOnly(el, S);
+  };
+  el.querySelector('#jp-mine').onclick = () => {
+    // 清掉曲庫原本的篩選，才看得到整份清單
+    mai.f = { ...DEFAULT_F, mine: true, region: 'jp', view: 'song' };
+    LS.set('maiFilter', mai.f);
+    mai.tab = 'lib';
+    LS.set('maiTab', 'lib');
+    renderMai(document.getElementById('b50'));
+  };
+  el.querySelectorAll('.jp-fav').forEach(
+    b =>
+      (b.onclick = () => {
+        const key = b.closest('.mai-song').dataset.key,
+          l = myList();
+        l.has(key) ? l.delete(key) : l.add(key);
+        LS.set('maiList', [...l]);
+        renderJpOnly(el, S);
+      }),
+  );
+  // 日版限定的譜面要用日版的定數
+  el.querySelectorAll('[data-s]').forEach(
+    b =>
+      (b.onclick = () => {
+        const s = S.songs[+b.dataset.s];
+        if (b.dataset.i == null) return openSong(s);
+        openChart(sheetChart(s.sheets[+b.dataset.i], 0));
+      }),
+  );
+}
+
 /* ---- 🎵 maimai 頁：子分頁 ---- */
 const MAI_TABS = [
   ['b50', '🏅 B50'],
   ['lib', '📚 曲庫'],
   ['dan', '🎖️ 段位'],
+  ['jp', '✈️ 日版限定'],
 ];
 function renderMai(el) {
   let tab = mai.tab || LS.get('maiTab', 'b50');
@@ -840,7 +957,7 @@ function renderMai(el) {
   loadSongs()
     .then(S => {
       if (state.view !== 'b50' || mai.tab !== tab) return;
-      ({ b50: renderB50, lib: renderLibrary, dan: renderDan })[tab](body, S);
+      ({ b50: renderB50, lib: renderLibrary, dan: renderDan, jp: renderJpOnly })[tab](body, S);
     })
     .catch(() => (body.innerHTML = '<div class="empty">歌曲資料載入失敗（需要網路）</div>'));
 }

@@ -70,6 +70,100 @@ function suggestions(r, limit = 10) {
   return picks.sort((a, b) => b.score - a.score || b.gain - a.gain).slice(0, limit);
 }
 
+/* 🎯 目標 Rating：一次推一個評級，每步挑「漲幅／要推的達成率」最划算的，推到目標為止。
+   每推一首都重算 B15／B35（推上去的譜面可能擠掉別首），所以漲幅是實際會漲的分數。 */
+const GOAL_CAPS = [
+  [99.5, 'SS+'],
+  [100, 'SSS'],
+  [100.5, 'SSS+'],
+];
+const GOAL_GAPS = [0.5, 1, 2, 99];
+function goalPlan(r, target, cap, maxGap) {
+  const rows = r.rows.map(x => ({ ...x, from: x.ach })),
+    picked = new Map();
+  let total = r.total;
+  while (total < target && picked.size < 50) {
+    // 目前在 B15／B35 裡的譜面，和各組最後一名（推上去的譜面要贏過它才擠得進去）
+    const inTop = new Set(),
+      floor = {};
+    for (const isNew of [true, false]) {
+      const n = isNew ? 15 : 35,
+        top = rows
+          .filter(x => x.isNew === isNew)
+          .sort((x, y) => y.ra - x.ra)
+          .slice(0, n);
+      top.forEach(x => inTop.add(x));
+      floor[isNew] = top.length === n ? top[n - 1].ra : 0;
+    }
+    let best = null;
+    for (const row of rows) {
+      const next = RANKS.filter(x => x[0] > row.ach && x[0] <= cap).pop();
+      if (!next || next[0] - row.from > maxGap) continue;
+      const ra = rawRating(row.c, next[0], next[1]) + (/^ap/.test(row.fc) ? 1 : 0),
+        gain = ra - (inTop.has(row) ? row.ra : floor[row.isNew]);
+      if (gain <= 0) continue;
+      const score = gain / Math.max(next[0] - row.ach, 0.05);
+      if (!best || score > best.score) best = { row, t: next[0], name: next[2], ra, gain, score };
+    }
+    if (!best) break;
+    best.row.ach = best.t;
+    best.row.ra = best.ra;
+    total += best.gain;
+    const p = picked.get(best.row) || { row: best.row, gain: 0 };
+    p.gain += best.gain;
+    p.name = best.name;
+    p.gap = best.t - best.row.from;
+    picked.set(best.row, p);
+  }
+  return { total, steps: [...picked.values()].sort((a, b) => a.gap - b.gap || b.gain - a.gain) };
+}
+function goalRowHTML(p, i) {
+  const r = p.row;
+  return `<button class="b50-row mai-chart" data-k="${esc(r.title + '|' + r.kind)}" data-d="${r.diff}">
+    <span class="b50-no">${i + 1}</span>${coverImg(r.img)}
+    <div class="b50-info"><div class="b50-title">${esc(r.title)}</div>
+      <div class="b50-meta">${diffTag(r.diff)} ${r.kind === 'dx' ? 'DX' : 'STD'} · 定數 ${constText(r.c, r.est)}</div></div>
+    <div class="b50-score"><b>${r.from.toFixed(4)}% → ${p.name}</b><small>差 ${p.gap.toFixed(4)}% · <b>+${p.gain}</b></small></div>
+  </button>`;
+}
+function goalHTML(r) {
+  const g = (mai.goal = mai.goal || { target: 0, cap: 100, gap: 1, ...LS.get('maiGoal', {}) });
+  if (!g.target || g.target <= r.total) g.target = Math.ceil((r.total + 1) / 100) * 100;
+  const p = goalPlan(r, g.target, g.cap, g.gap),
+    ok = p.total >= g.target;
+  return `<div class="mai-dan-bar goal-bar">
+      <label>目標 Rating <input id="goal-t" class="mai-input" type="number" inputmode="numeric" min="${r.total + 1}" step="50" value="${g.target}"></label>
+      <div class="chips">${GOAL_CAPS.map(([t, n]) => `<span class="chip rad" data-gc="${t}" data-on="${g.cap === t ? 1 : 0}">最高推到 ${n}</span>`).join('')}</div>
+      <div class="chips">${GOAL_GAPS.map(x => `<span class="chip rad" data-gg="${x}" data-on="${g.gap === x ? 1 : 0}">${x === 99 ? '差距不限' : `差 ${x}% 以內`}</span>`).join('')}</div>
+    </div>
+    <p class="mf-msg${ok ? '' : ' err'}">${
+      ok
+        ? `🎯 推這 <b>${p.steps.length}</b> 首就能從 ${r.total} 到 <b>${p.total}</b>（目標 ${g.target}）`
+        : `目前的條件最多推到 ${p.total}，還差 ${g.target - p.total}。試著放寬「最高推到」或「差距」。`
+    }</p>
+    <p class="cq-hint">由簡單到難排（要推的達成率越少越前面）。只算打過的譜面；點譜面看各評級 Rating。</p>
+    ${p.steps.map(goalRowHTML).join('') || '<div class="empty">沒有可以推的譜面</div>'}`;
+}
+function bindGoal(el, S) {
+  const g = mai.goal,
+    save = () => {
+      LS.set('maiGoal', g);
+      renderB50(el, S);
+    },
+    t = el.querySelector('#goal-t');
+  if (!t) return;
+  t.onchange = () => {
+    g.target = Math.round(+t.value) || 0;
+    save();
+  };
+  el.querySelectorAll('[data-gc]').forEach(
+    c => (c.onclick = () => ((g.cap = +c.dataset.gc), save())),
+  );
+  el.querySelectorAll('[data-gg]').forEach(
+    c => (c.onclick = () => ((g.gap = +c.dataset.gg), save())),
+  );
+}
+
 function b50RowHTML(r, i) {
   const rank = rankOf(r.ach)[2];
   return `<button class="b50-row mai-chart" data-k="${esc(r.title + '|' + r.kind)}" data-d="${r.diff}">
@@ -283,12 +377,16 @@ async function watchJob() {
 const B50_MODES = [
   ['list', '🏅 B50'],
   ['up', '📈 推分建議'],
+  ['goal', '🎯 目標'],
+  ['vs', '🆚 比較'],
   ['log', '📉 Rating 紀錄'],
 ];
 function renderB50(el, S) {
   const data = LS.get('mai', null);
   if (!data) {
+    const vs = LS.get('maiVs', []);
     el.innerHTML = `<div class="b50-empty">還沒有成績。用好友代碼讓音GO 幫你抓，或用書籤工具從 maimai DX NET 匯入，就能看到你的 B50。</div>
+      ${vs.length ? `<p class="mf-msg">🆚 已收到 ${esc(vs[0].name)} 的成績，匯入你自己的成績後就能並排比較。</p>` : ''}
       ${friendHTML()}${guideHTML(!acct.user)}`;
     bindGuide(el);
     bindFriend();
@@ -303,7 +401,9 @@ function renderB50(el, S) {
     const ps = suggestions(r);
     body = `<p class="cq-hint">差一點就到下一個評級、推上去總 Rating 會漲的譜面（漲幅／差距排序）。點譜面看各評級的 Rating。</p>
       ${ps.length ? ps.map(upRowHTML).join('') : '<div class="empty">目前沒有推分建議</div>'}`;
-  } else if (mode === 'log') body = histHTML(data);
+  } else if (mode === 'goal') body = goalHTML(r);
+  else if (mode === 'vs') body = vsHTML(r, data, S);
+  else if (mode === 'log') body = histHTML(data);
   else
     body = `${
       diff
@@ -342,6 +442,8 @@ function renderB50(el, S) {
   bindCharts(el);
   bindGuide(el);
   bindFriend();
+  if (mode === 'goal') bindGoal(el, S);
+  if (mode === 'vs') bindVs(el, S);
 }
 
 // 存新成績：順便記一筆 Rating 紀錄（同一次更新不重複記）

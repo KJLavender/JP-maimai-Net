@@ -1895,3 +1895,169 @@ button.b50-row:hover {
     bottom: calc(76px + env(safe-area-inset-bottom));
   }
 }
+
+/* ---------- 🗓️ 遠征行程 ---------- */
+.dlg input[type='date'],
+.dlg input[type='time'] {
+  font: 0.9rem var(--f);
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+#pl-res {
+  margin-top: 10px;
+}
+.pl-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+.pl-mark {
+  font-size: 0.82rem;
+  font-weight: 700;
+  background: var(--surface2);
+}
+.pl-late {
+  color: var(--magenta);
+}
+.pl-no {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--magenta);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+.pl-move {
+  margin: 0 0 0 22px;
+  padding: 6px 0 6px 16px;
+  border-left: 2px dashed var(--line);
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+.pl-warn {
+  font-size: 0.72rem;
+  color: var(--amber);
+  margin-top: 2px;
+}
+
+/* ---------- 🎯 目標 Rating、🆚 比較、✈️ 日版限定 ---------- */
+.goal-bar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+.mai-dan-bar.goal-bar .chips {
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+}
+.goal-bar .mai-input {
+  width: 7em;
+  margin: 0;
+  padding: 7px 10px;
+}
+.vs-t {
+  width: 100%;
+  margin-top: 10px;
+}
+.vs-t td,
+.vs-t th {
+  text-align: center;
+}
+.vs-t td.win {
+  color: var(--green);
+  font-weight: 800;
+}
+.vs-me {
+  color: var(--magenta);
+}
+.vs-fr {
+  color: var(--cyan);
+}
+.vs-cmp span {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.vs-cmp span.none {
+  font-weight: 500;
+  color: var(--muted);
+}
+.vs-cmp small {
+  font-weight: 500;
+}
+.jp-fav {
+  flex: none;
+  align-self: center;
+  font-size: 1.3rem;
+  color: var(--muted);
+}
+.jp-fav[data-on='1'] {
+  color: var(--amber);
+}
+
+/* ---------- 🏅 制霸排行榜 ---------- */
+.board {
+  max-width: 640px;
+  margin: 14px auto;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.board summary {
+  cursor: pointer;
+  font-weight: 700;
+  text-align: center;
+}
+.board .bd-me {
+  margin: 10px 0;
+}
+.bd-pub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.86rem;
+  margin-bottom: 8px;
+}
+.bd-tabs {
+  margin: 10px 0;
+}
+.bd-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  margin-bottom: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+.bd-row.me {
+  border-color: var(--magenta);
+}
+.bd-row.hidden {
+  opacity: 0.6;
+}
+.bd-no {
+  width: 1.6em;
+  text-align: center;
+  font-weight: 800;
+  color: var(--muted);
+}
+.bd-row .avatar {
+  flex: none;
+}

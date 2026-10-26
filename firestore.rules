@@ -41,6 +41,22 @@ service cloud.firestore {
         && request.resource.data.at == request.time
         && (resource == null || cooled());
     }
+    // 🏅 制霸排行榜：使用者自己選擇公開，任何人都能讀；只能寫自己的，而且只有名字和數字
+    match /board/{uid} {
+      function n(k, max) {
+        return request.resource.data[k] is int && request.resource.data[k] >= 0 && request.resource.data[k] <= max;
+      }
+      allow read: if true;
+      allow delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'shops', 'prefs', 'tw', 'twAreas', 'areas', 'at'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 20
+        && n('shops', 5000) && n('prefs', 47) && n('tw', 1000) && n('twAreas', 30)
+        && request.resource.data.areas == request.resource.data.prefs + request.resource.data.twAreas
+        && request.resource.data.tw <= request.resource.data.shops
+        && request.resource.data.at == request.time;
+    }
     // maiBind/{好友代碼}：哪個帳號送的好友申請，只有 worker 能讀寫（其他路徑一律拒絕）
   }
 }
