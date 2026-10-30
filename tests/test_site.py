@@ -570,6 +570,10 @@ export const serverTimestamp = () => Date.now();
     check("代抓：機器人太久沒接手會提示可能離線", D.locator("#mai-friend .mf-msg.err").is_visible()
           and not D.locator("#mai-friend .busy").count())
     cloud["jobs/g1"] = j
+    # 模擬中途斷網：接下來兩次讀取失敗，網頁要繼續等，不能就此卡住
+    D.evaluate("""()=>{const f=window.fetch;let n=2;
+      window.fetch=(u,o)=>String(u).includes('fake-firestore')&&n-->0?Promise.reject(new TypeError('offline')):f(u,o)}""")
+    D.wait_for_timeout(7000)
     now = D.evaluate("()=>Date.now()")
     cloud["users/g1/mai/b50"] = {"at": now, "data": json.dumps({
         "v": 1, "at": now, "name": "好友代抓", "rating": 13000, "scores": [], "new": [], "src": "friend",
