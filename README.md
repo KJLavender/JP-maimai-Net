@@ -24,6 +24,9 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 - 🔗 **Shareable links**: filters are stored in the URL, so a friend opening the link sees the same results (only "search this place" locations are shared, never your GPS position)
 - 🏆 **Arcade conquest**: tap "🏁 Mark visited" on any arcade; a tile map of the 47 prefectures fills in by how much you've covered and can be exported as an image to share. Records live in your own browser; optionally **sign in** (Google or email + password, top right) to sync them between phone and computer automatically, or move them with a backup / restore code
 - 📊 **Stats**: how many arcades carry each rhythm game over time (one more point every weekly update) and a ranking by prefecture, switchable by game, with a table view
+- 🎵 **maimai DX B50**: when signed in, enter your friend code and accept the bot's friend request, then one button fetches your scores; or run a bookmarklet on maimai DX NET (International) while logged in; it reads *your own* scores and brings them back to compute Best 35 + New 15 with chart constants. Your SEGA password never passes through this site; scores stay in the browser and sync to your account when signed in. Also shows 📈 score-push suggestions (charts close to the next rank that would raise your rating) and 📉 rating history
+- 📚 **maimai song library** (modeled on [arcade-songs](https://arcade-songs.zetaraku.dev/maimai/), all buttons): search by title, artist, chart designer or romaji; filter by International / Japanese version, difficulty, type (DX / STD / 宴), level and constant range, category, version, designer, BPM, new songs and ⭐ my list; sort by constant, level, release date, BPM, note count or title; chart list, cover grid and summary views; 🎲 draw 1–10 random charts from the results. Tap a song for all its charts (designer, note counts, regions); tap a chart for the rating at each rank (SSS+…AAA)
+- 🎖️ **Dan courses**: 段位認定 and オトモダチ対戦 (friend battle) course songs for every version, International or Japanese version, with life / damage / recovery, the opponent's rank and your own score from B50
 - 🗺️ **List / map views**: clustered markers, green = open now
 - 📱 **PWA**: add to home screen; the list works offline
 
@@ -53,6 +56,8 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 │   ├── style.css / app.js
 │   ├── conquest.js / stats.js   🏆 Conquest, 📊 Stats
 │   ├── account.js / privacy.html   👤 Sign-in & sync (Firebase), privacy notice
+│   ├── mai.js                      🎵 maimai page: sub-tabs, song library (filters, views, draw, my list), per-rank rating
+│   ├── b50.js / bookmarklet.js     🎵 B50 page, and the bookmarklet that runs on maimai DX NET
 │   └── sw.js / manifest.webmanifest / icon.svg   PWA
 ├── site/                 Generated website (not committed; built by Netlify on deploy)
 ├── tests/test_site.py    E2E tests (Playwright)
@@ -67,6 +72,7 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 | `python scripts/build_site.py` | Reads `data/arcades.csv` and `templates/` and generates `site/` (arcade data inlined in `index.html`, plus `data.json`); the Service Worker cache version is derived from the content automatically |
 | `python scripts/google_place_ids.py` | Looks up each arcade's Google place ID with the Places API so "store info" and navigation open the exact place (needs `GOOGLE_MAPS_API_KEY` in `.env`; only place IDs are stored, per Google's caching rules) |
 | `python scripts/google_hours.py` | Fills opening hours (including per-weekday hours) from Google Place Details: all Taiwan arcades plus Japanese ones with no official hours; never exceeds the daily quota or the 1,000 free calls per month |
+| `python scripts/songs.py` | Downloads the [arcade-songs](https://arcade-songs.zetaraku.dev) dataset and slims it into `data/songs.json` (~740 KB, ~280 KB gzipped: every chart with level, constant, designer, note counts, regions and International-version overrides, dan / friend-battle courses, plus romaji from `pykakasi`), and saves small cover images to `data/covers/` (~15 MB, only new ones are downloaded). Everything is committed and served from this site, so the maimai page keeps working if the source goes away; if the source is down or returns far fewer songs, the existing files are kept. The weekly update workflow also runs it |
 
 The other scripts (`scrape_*`, `coords_*`, `mgm_tw.py`) are called by `update_data.py` and can also be run on their own for debugging (`--test`). Every script works from any directory.
 
@@ -97,6 +103,8 @@ Checks the formatting of `templates/` (Prettier), builds the site with `scripts/
 5. Google Cloud console → *Google Auth Platform* → *Audience* → **Publish app** (in *Testing* only listed test users can use Google sign-in)
 
 The Firebase web config is public (it ships in the page) and is not a secret; access is enforced by `firestore.rules`, where each user can only read and write `users/{their uid}`. The Firebase SDK is loaded only when someone opens the sign-in dialog or was signed in before.
+
+**Friend-code B50 fetching**: signed-in users enter their friend code on the 🎵 maimai page and press buttons (🤝 send friend request → ✅ I accepted → 🔄 update B50). Each press writes a job to `jobs/{uid}` (rules allow only queued jobs, at most one per 10 minutes for score fetching / 1 minute for friend requests); the `otogo_worker.py` in [maimai-dc-bot](https://github.com/KJLavender/maimai-dc-bot) runs on the bot's VM, does the job with the bot's maimai DX NET account and writes the scores back to `users/{uid}/mai/b50`. See that repo's README for setup.
 
 Run the tests locally:
 

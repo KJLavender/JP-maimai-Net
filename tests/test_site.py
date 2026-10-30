@@ -2,7 +2,8 @@
 用法: python tests/test_site.py [url]       （預設 http://localhost:8765/index.html）
 環境變數: BROWSER_CHANNEL（預設 chrome；設成空字串用 Playwright 內建 Chromium）
           SCREENSHOT_DIR（手機截圖輸出位置，預設 tests/out）"""
-import json, os, sys, re
+import json, os, sys, re, html
+from collections import Counter
 from urllib.parse import urlparse, unquote
 from playwright.sync_api import sync_playwright
 
@@ -322,6 +323,17 @@ with sync_playwright() as p:
     page.locator("#st-table").click()
     page.evaluate("()=>{localStorage.removeItem('maimai:visited');location.hash=''}")
 
+    bg = lambda: page.evaluate("()=>getComputedStyle(document.body).backgroundColor")
+    light = bg()
+    page.locator("#themebtn").click()
+    dark = bg()
+    page.reload(wait_until="networkidle")
+    check("外觀：預設淺色，可切換深色並記住", light == "rgb(244, 245, 250)" and dark != light and bg() == dark,
+          f"{light} → {dark}")
+    page.locator("#themebtn").click()
+    check("外觀：CSS／JS 網址帶版本號（新版上線不會拿到舊檔）",
+          page.evaluate("()=>{const a=[...document.querySelectorAll('link[href^=\"style.css\"],script[src^=\"app.js\"]')];"
+                        "return a.length===2&&a.every(e=>/\\?v=\\w{8}$/.test(e.href||e.src))}"))
     check("沒有 JS 錯誤", not errors, "; ".join(errors)[:200])
     ctx.close()
 
@@ -377,6 +389,9 @@ export const runTransaction = async (_, fn) => {
   return out;
 };
 export const deleteDoc = ref => call(ref.path, 'delete', '{}');
+export const setDoc = (ref, d) => call(ref.path, 'set', JSON.stringify(d));
+export const getDoc = async ref => { const d = await call(ref.path, 'get'); return { exists: () => !!d, data: () => d }; };
+export const serverTimestamp = () => Date.now();
 """,
     }
     CORS = {"Access-Control-Allow-Origin": "*"}
@@ -387,7 +402,12 @@ export const deleteDoc = ref => call(ref.path, 'delete', '{}');
     def fake_fs(route):
         u = urlparse(route.request.url)
         path, q = u.path.lstrip("/"), dict(x.split("=", 1) for x in u.query.split("&"))
-        if path != "users/" + unquote(q["uid"]):
+        own = "users/" + unquote(q["uid"])
+        job = "jobs/" + unquote(q["uid"])
+        if path != own and not path.startswith(own + "/") and path != job:
+            return route.fulfill(status=403, body="{}", headers=CORS)
+        # firestore.rules：工作還在排隊／進行中不能再送
+        if path == job and q["op"] == "set" and (cloud.get(job) or {}).get("status") in ("queued", "running"):
             return route.fulfill(status=403, body="{}", headers=CORS)
         if q["op"] == "set":
             cloud[path] = json.loads(route.request.post_data)
@@ -428,6 +448,8 @@ export const deleteDoc = ref => call(ref.path, 'delete', '{}');
     check("帳號：Google 登入後右上角顯示名字", user_btn(A).endswith("測試玩家") and not A.locator("#login").is_visible(),
           user_btn(A))
     check("同步：登入前的紀錄會上傳到帳號", cloud_on() == [ids[0]], str(cloud_on()))
+    A.evaluate("()=>saveMaiCloud({v:1,at:5,name:'雲端玩家',rating:1,scores:[],new:null})")
+    check("B50：登入中成績會另存到帳號", "雲端玩家" in (cloud.get("users/g1/mai/b50") or {}).get("data", ""))
     B = device()
     B.evaluate("()=>toggleVisited(1)")
     B.locator("#sync-login").click()   # 制霸頁的登入按鈕
@@ -436,6 +458,9 @@ export const deleteDoc = ref => call(ref.path, 'delete', '{}');
     b_has = B.evaluate("()=>[...state.visited].sort()")
     check("同步：裝置 B 登入後兩台的紀錄合併", b_has == sorted(ids) and cloud_on() == sorted(ids),
           f"B={len(b_has)} 雲端={len(cloud_on())}")
+    B.wait_for_function("()=>localStorage.getItem('maimai:mai')")
+    check("B50：在別台裝置登入會拿到帳號裡的成績",
+          B.evaluate("()=>JSON.parse(localStorage.getItem('maimai:mai')).name") == "雲端玩家")
     A.evaluate("()=>toggleVisited(0)")   # A 取消第一間；登入中 1.5 秒後自動上傳
     A.wait_for_timeout(2500)
     check("同步：登入中修改會自動上傳（A 取消的那間雲端也取消）", ids[0] not in cloud_on(), str(cloud_on()))
@@ -473,7 +498,8 @@ export const deleteDoc = ref => call(ref.path, 'delete', '{}');
     B.locator("#me-out").click()
     B.wait_for_timeout(300)
     check("帳號：登出後回到「登入」、這台裝置的紀錄清空、雲端還在",
-          user_btn(B).endswith("登入") and B.evaluate("()=>state.visited.size") == 0 and cloud_on() == [ids[1]])
+          user_btn(B).endswith("登入") and B.evaluate("()=>state.visited.size") == 0 and cloud_on() == [ids[1]]
+          and not B.evaluate("()=>localStorage.getItem('maimai:mai')"))
     A.context.close()
     B.context.close()
 
@@ -506,6 +532,311 @@ export const deleteDoc = ref => call(ref.path, 'delete', '{}');
     check("登入：密碼錯誤會提示", "密碼不對" in C.locator("#lg-err").inner_text(), C.locator("#lg-err").inner_text())
     C.context.close()
 
+    # ---------- 🤝 好友代碼代抓（用 Python 假裝 mai-bot 的 otogo_worker.py） ----------
+    D = device()
+    D.evaluate("()=>{location.hash='view=b50'}")
+    D.wait_for_selector("#mai-friend", timeout=5000)
+    check("代抓：沒登入時提示登入", D.locator("#mai-friend #mf-login").is_visible())
+    D.locator("#mf-login").click()
+    D.locator("#lg-google").click()
+    synced(D)
+    D.wait_for_timeout(500)   # 等帳號裡的成績載完、畫面重畫好
+    D.wait_for_selector("#mf-code")
+    D.fill("#mf-code", "1234")
+    D.locator("#mf-friend").click()
+    check("代抓：好友代碼不是 13 位會提示", "13 位" in D.locator("#toast").inner_text() and "jobs/g1" not in cloud)
+    D.fill("#mf-code", "1234-5678-90123")
+    D.locator("#mf-friend").click()
+    D.wait_for_selector("#mai-friend .busy")
+    j = cloud.get("jobs/g1") or {}
+    check("代抓：送出好友申請（工作寫到 jobs/{uid}）", j.get("type") == "friend" and j.get("code") == "1234567890123"
+          and j.get("status") == "queued", str(j))
+    D.evaluate("()=>sendJob('b50','1234567890123')")
+    D.wait_for_timeout(300)
+    check("代抓：工作還在排隊時不能再送", "太快" in D.locator("#toast").inner_text())
+    cloud["jobs/g1"] = {**j, "status": "sent", "msg": "已送出好友申請，請到 maimai DX NET 接受「音GO」",
+                         "at": D.evaluate("()=>Date.now()") - 52000}   # 冷卻還剩約 8 秒
+    D.wait_for_selector("#mf-b50[disabled]", timeout=8000)
+    D.wait_for_selector("#mf-b50:not([disabled])", timeout=15000)
+    check("代抓：冷卻時間到了按鈕自己變可以按（不用切換畫面）", D.locator("#mf-b50").is_enabled())
+    check("代抓：申請送出後顯示「我接受了」按鈕與說明", "我接受了" in D.locator("#mf-b50").inner_text()
+          and "接受「音GO」" in D.locator("#mai-friend").inner_text())
+    D.locator("#mf-b50").click()
+    D.wait_for_selector("#mai-friend .busy")
+    j = cloud.get("jobs/g1") or {}
+    check("代抓：按下後送出抓成績的工作", j.get("type") == "b50" and j.get("status") == "queued", str(j))
+    cloud["jobs/g1"] = {**j, "at": j["at"] - 180000}   # 排隊 3 分鐘都沒人接手
+    D.wait_for_function("()=>document.querySelector('#mai-friend').textContent.includes('沒有回應')", timeout=8000)
+    check("代抓：機器人太久沒接手會提示可能離線", D.locator("#mai-friend .mf-msg.err").is_visible()
+          and not D.locator("#mai-friend .busy").count())
+    cloud["jobs/g1"] = j
+    # 模擬中途斷網：接下來兩次讀取失敗，網頁要繼續等，不能就此卡住
+    D.evaluate("""()=>{const f=window.fetch;let n=2;
+      window.fetch=(u,o)=>String(u).includes('fake-firestore')&&n-->0?Promise.reject(new TypeError('offline')):f(u,o)}""")
+    D.wait_for_timeout(7000)
+    now = D.evaluate("()=>Date.now()")
+    cloud["users/g1/mai/b50"] = {"at": now, "data": json.dumps({
+        "v": 1, "at": now, "name": "好友代抓", "rating": 13000, "scores": [], "new": [], "src": "friend",
+        "hist": [[now, 13000]]})}
+    cloud["jobs/g1"] = {**j, "status": "done", "msg": "已更新"}
+    D.wait_for_function("()=>(document.querySelector('#b50 .b50-name')||{}).textContent==='好友代抓'", timeout=8000)
+    check("代抓：做完會自動拿到成績、標明是代抓的", "代抓" in D.locator("#b50").inner_text()
+          and D.evaluate("()=>JSON.parse(localStorage.getItem('maimai:mai')).src") == "friend")
+    D.wait_for_selector("#mf-b50")
+    check("代抓：剛更新完「更新 B50」要等冷卻時間", "更新 B50" in D.locator("#mf-b50").inner_text()
+          and D.locator("#mf-b50").is_disabled() and "分鐘後" in D.locator("#mai-friend").inner_text())
+    D.context.close()
+
+    # ---------- 🎵 B50（假的 maimai DX NET，跑真的書籤工具） ----------
+    songs = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "songs.json"),
+                           encoding="utf-8"))
+
+    def view_of(sh, intl=True):   # [等級, 定數, 估計, 版本]；國際版有不同數值時用國際版
+        return sh[9] if intl and sh[9] else [sh[2], sh[3], sh[4], sh[8]]
+
+    # 和 mai.js 一樣轉成 B50 用的舊格式：[歌名, 種類, 版本, 封面, [5 定數], 估計遮罩]
+    legacy = []
+    for s in songs["songs"]:
+        for t, kind in ((0, "dx"), (1, "std")):
+            own = [sh for sh in s[10] if sh[0] == t and isinstance(sh[1], int)]
+            if not own:
+                continue
+            consts, est = [None] * 5, 0
+            for sh in own:
+                v = view_of(sh)
+                consts[sh[1]] = v[1]
+                est |= v[2] << sh[1]
+            legacy.append([s[0], kind, songs["vers"][view_of(own[0])[3]][0], s[6], consts, est])
+    keys = Counter((s[0], s[1]) for s in legacy)
+    ok = [s for s in legacy if s[4][3] and not s[5] & 8 and keys[(s[0], s[1])] == 1]
+    new_s = next(s for s in ok if s[2] in songs["new"])
+    old_s = [s for s in ok if s[2] not in songs["new"]][:2]
+    plays = [(old_s[0], 100.6, "ap"), (old_s[1], 99.2, ""), (new_s, 100.1, "fc")]
+
+    def ra(c, a, fc):   # 與 mai-bot chart_rating 相同的整數算法
+        k = next(k for t, k in [(100.5, 22.4), (100, 21.6), (99.5, 21.1), (99, 20.8), (98, 20.3), (97, 20),
+                                (94, 16.8), (90, 15.2), (80, 13.6), (0, 12)] if a >= t)
+        return (round(c * 10) * round(min(a, 100.5) * 10000) * round(k * 10)) // 10**8 \
+            + (1 if fc.startswith("ap") else 0)
+    want = sum(ra(s[4][3], a, fc) for s, a, fc in plays)
+
+    def mai_html(rows):
+        out = ""
+        for s, a, fc in rows:
+            icons = "".join(f'<img src="https://maimaidx-eng.com/maimai-mobile/img/music_icon_{i}.png">'
+                            for i in [fc, "back"] if i)
+            score = f'<div class="music_score_block w_112">{a:.4f}%</div>' if a else ""
+            kind = "music_dx" if s[1] == "dx" else "music_standard"
+            out += (f'<div class="w_450 m_15 p_r f_0"><div class="music_master_score_back pointer">{icons}'
+                    f'<div class="music_name_block t_l">{html.escape(s[0])}</div>{score}</div>'
+                    f'<img src="https://maimaidx-eng.com/maimai-mobile/img/{kind}.png" class="music_kind_icon"></div>')
+        return out
+
+    def fake_mai(route):
+        u = urlparse(route.request.url)
+        q = dict(x.split("=", 1) for x in u.query.split("&") if "=" in x)
+        if u.path.endswith("/home/"):
+            body = '<div class="name_block">ＴＥＳＴＥＲ</div><div class="rating_block">12345</div>'
+        elif "musicGenre" in u.path:   # 只有 MASTER 有成績；另放一首沒打過的
+            body = mai_html(plays + [(ok[-1], 0, "")]) if q.get("diff") == "3" else ""
+        elif "musicVersion" in u.path:
+            body = (mai_html([(new_s, 0, "")]) if q.get("version") == "30" else "" if q else
+                    '<select name="version"><option value="29">A</option><option value="30">B</option></select>')
+        else:
+            body = ""
+        route.fulfill(body=f"<html><body>{body}</body></html>", content_type="text/html")
+
+    site = URL.rsplit("/", 1)[0]
+    bm_src = b.new_context().request.get(site + "/bookmarklet.js").text()
+    ctx = b.new_context(viewport={"width": 1100, "height": 900})
+    ctx.route("https://maimaidx-eng.com/**", fake_mai)
+    page = ctx.new_page()
+    page.goto(site + "/index.html#view=b50", wait_until="networkidle")
+    check("B50：還沒成績時顯示書籤工具教學", page.locator("#b50 .b50-guide[open]").is_visible()
+          and (page.locator("#b50 .b50-bm").get_attribute("href") or "").startswith("javascript:"))
+    page.add_script_tag(content=bm_src)
+    page.wait_for_timeout(300)
+    check("B50：在其他網站按書籤會提示要先開 maimai DX NET", "maimai DX NET" in page.inner_text("body"))
+    page.goto("https://maimaidx-eng.com/maimai-mobile/home/")
+    page.evaluate("s=>{window.OTOGO_SITE=s}", site)
+    page.once("dialog", lambda d: d.accept())   # 音GO 問要不要匯入
+    with page.expect_navigation(url=lambda u: u.startswith(site)):
+        page.add_script_tag(content=bm_src)
+    page.wait_for_selector("#b50 .b50-total")
+    total = page.locator("#b50 .b50-total b").inner_text()
+    check("B50：書籤工具讀完成績會帶回音GO", page.locator("#b50 .b50-name").inner_text() == "ＴＥＳＴＥＲ"
+          and "mai=" not in page.url, page.url[-40:])
+    check("B50：新曲、舊曲分開算（新曲以官網版本頁為準）", page.locator("#b50 .b50-row").count() == 3
+          and "1 首" in page.locator(".b50-h").first.inner_text())
+    check("B50：Rating 算法正確（含 AP +1）", total == str(want), f"{total} vs {want}")
+    page.reload(wait_until="networkidle")
+    page.wait_for_selector("#b50 .b50-total")
+    check("B50：重新整理後成績還在", page.locator("#b50 .b50-total b").inner_text() == str(want))
+    check("B50：匯入時記一筆 Rating 紀錄",
+          page.evaluate("()=>JSON.parse(localStorage.getItem('maimai:mai')).hist.map(x=>x[1])") == [12345])
+    page.locator("#b50-img").click()
+    page.wait_for_selector("#b50img-pic", timeout=15000)
+    pic = page.evaluate("()=>{const i=document.querySelector('#b50img-pic');return [i.src.slice(0,22),i.naturalWidth]}")
+    check("B50：匯出圖片（PNG、有下載按鈕）", pic == ["data:image/png;base64,", 2400]
+          and page.locator("#b50img-dl").get_attribute("download").endswith(".png"), str(pic))
+    page.locator("#b50img .dlg-x").click()
+
+    # ---------- 🎵 maimai 工具（按鈕） ----------
+    page.locator(".mai-modes .chip", has_text="推分建議").click()
+    up = page.locator("#b50 .b50-row")
+    check("推分：列出差一點就升級的譜面（AP 滿分的不列）", up.count() == 2, str(up.count()))
+    page.locator(".mai-modes .chip", has_text="Rating 紀錄").click()
+    check("Rating 紀錄：顯示官網 Rating", "12345" in page.locator(".mai-log").inner_text())
+    page.locator(".mai-modes .chip", has_text="B50").click()
+    page.locator("#b50 .b50-row").first.click()
+    dlg = page.locator("#chart[open]")
+    check("點 B50 的譜面：各評級 Rating＋自己的成績", dlg.is_visible() and "SSS+" in dlg.inner_text()
+          and "你的成績" in dlg.inner_text())
+    dlg.locator(".dlg-x").click()
+
+    # ---------- 📚 曲庫（參考 arcade-songs） ----------
+    def lvv(l):
+        m = re.match(r"\d+", l)
+        return int(m.group()) + (0.6 if "+" in l else 0) if m else None
+
+    def count_where(lv=None, bit=2):
+        return sum(1 for s in songs["songs"] for sh in s[10] if sh[7] & bit
+                   and (lv is None or lvv(view_of(sh, bit == 2)[0]) == lvv(lv)))
+
+    def shown_count():
+        return int(re.search(r"符合 (\d+) 個譜面", page.locator("#mai-res .count").inner_text()).group(1))
+
+    def nums(sel):   # 列表右邊的定數；宴譜面顯示等級（例：14+?）
+        return [float(x.lstrip("≈")) if re.fullmatch(r"≈?\d+\.\d", x) else lvv(x)
+                for x in page.locator(sel).all_inner_texts()]
+
+    page.locator(".mai-tabs button", has_text="曲庫").click()
+    page.wait_for_selector("#mai-res .mai-lrow")
+    check("曲庫：預設列出國際版全部譜面", shown_count() == count_where(), f"{shown_count()} vs {count_where()}")
+    check("maimai 頁：不顯示找店的搜尋與篩選", not page.locator("#q").is_visible()
+          and not page.locator("#gamerow").is_visible())
+    page.wait_for_function("()=>{const i=document.querySelector('#mai-res .b50-cover');return i&&i.complete}")
+    cover = page.evaluate("()=>{const i=document.querySelector('#mai-res .b50-cover');return [i.getAttribute('src'),i.naturalWidth]}")
+    check("曲庫：封面從本站讀（來源關了也還在）", cover[0].startswith("covers/") and cover[1] > 0, str(cover))
+    # 找一首國際版有 DX MASTER、歌名是日文的歌，用羅馬拼音搜
+    si, mi = next((i, j) for i, s in enumerate(songs["songs"]) if re.search(r"[\u3040-\u30ff\u4e00-\u9fff]", s[0])
+                  and len(s[7]) >= 8 for j, sh in enumerate(s[10]) if sh[0] == 0 and sh[1] == 3 and sh[7] & 2)
+    page.fill("#mai-q", songs["songs"][si][7])
+    check("曲庫：羅馬拼音找得到日文歌名", songs["songs"][si][0] in page.locator("#mai-res").inner_text(),
+          songs["songs"][si][7])
+    page.locator(f'#mai-res .mai-lrow[data-s="{si}"][data-i="{mi}"]').click()
+    dlg = page.locator("#chart[open]")
+    sss = dlg.locator(".mai-rt tr", has_text="SSS+").inner_text()
+    c_master = view_of(songs["songs"][si][10][mi])[1]
+    check("曲庫：點譜面看各評級 Rating（SSS+ 正確）、譜師與物量", str(ra(c_master, 100.5, "")) in sss
+          and "TAP" in dlg.inner_text(), sss)
+    dlg.locator(".dlg-x").click()
+    page.fill("#mai-q", "")
+
+    page.locator("#mai-filter summary").click()
+    page.select_option('select[data-f="lvMin"]', "1")
+    page.select_option('select[data-f="lvMax"]', "1")
+    check("曲庫：低等級也查得到（Lv 1）", shown_count() == count_where("1") > 0, str(shown_count()))
+    page.select_option('select[data-f="lvMin"]', "13")
+    page.select_option('select[data-f="lvMax"]', "")
+    check("曲庫：等級只選一邊就只看那一級", shown_count() == count_where("13"), f"{shown_count()} vs {count_where('13')}")
+    page.select_option('select[data-f="lvMin"]', "")
+    vi = next(i for i, v in enumerate(songs["vers"]) if v[0] == "CiRCLE")
+    page.select_option('select[data-f="verMin"]', str(vi))
+    want_v = sum(1 for s in songs["songs"] for sh in s[10] if sh[7] & 2 and view_of(sh)[3] == vi)
+    check("曲庫：版本只選一邊就只看那個版本", shown_count() == want_v, f"{shown_count()} vs {want_v}")
+    page.select_option('select[data-f="verMin"]', "")
+    page.fill('input[data-f="cMax"]', "13.7")
+    want_c = sum(1 for s in songs["songs"] for sh in s[10] if sh[7] & 2 and round((view_of(sh)[1] or 0) * 10) == 137)
+    check("曲庫：定數只填一個就只看那個定數", shown_count() == want_c, f"{shown_count()} vs {want_c}")
+    page.fill('input[data-f="cMax"]', "")
+    page.fill("#mai-q", "zzz")
+    page.locator("#mai-reset").click()
+    check("曲庫：重設篩選會一起清掉搜尋字", page.locator("#mai-q").input_value() == ""
+          and shown_count() == count_where(), str(shown_count()))
+    page.select_option('select[data-f="lvMin"]', "14+")
+    page.select_option('select[data-f="lvMax"]', "14+")
+    consts = nums("#mai-res .b50-score b")
+    check("曲庫：等級 14+ 只列 14.6～14.9、定數高到低", shown_count() == count_where("14+")
+          and all(14.6 <= c <= 14.9 for c in consts) and consts == sorted(consts, reverse=True),
+          f"{shown_count()} vs {count_where('14+')} {consts[:5]}")
+    page.select_option('select[data-f="lvMax"]', "15")
+    heads = [h.split(" ")[1] for h in page.locator("#mai-res .mai-lvh").all_inner_texts()]
+    want_heads = [l for l in ("15", "14+") if count_where(l)]
+    check("定數表：依等級分段（高的在前）", heads[:len(want_heads)] == want_heads, str(heads))
+    page.select_option('select[data-f="lvMax"]', "14+")
+    page.locator("#mai-filter [data-r='region'][data-v='jp']").click()
+    check("曲庫：切換日版用日版的等級／收錄", shown_count() == count_where("14+", 1)
+          and "日版" in page.locator("#mai-res .count").inner_text(), f"{shown_count()} vs {count_where('14+', 1)}")
+    page.locator("#mai-filter [data-r='region'][data-v='intl']").click()
+
+    page.locator(".mai-views button", has_text="統計").click()
+    check("曲庫：統計檢視合計和篩選結果一致",
+          page.locator(".mai-sum tr").last.locator("td").last.inner_text() == str(count_where("14+")))
+    page.locator(".mai-views button", has_text="歌曲").click()
+    n_songs = len({i for i, s in enumerate(songs["songs"]) for sh in s[10]
+                   if sh[7] & 2 and lvv(view_of(sh)[0]) == 14.6})
+    check("歌曲檢視：一首歌一張卡、列出各難度定數", page.locator(".mai-song").count() == min(n_songs, 30)
+          and page.locator(".mai-song").first.locator(".mai-sheet").count() >= 4
+          and page.locator(".mai-song").first.locator(".mai-sheet:not(.dim)").count() >= 1,
+          f"{page.locator('.mai-song').count()} vs {n_songs}")
+    page.locator(".mai-song-t").first.click()
+    song = page.locator("#song[open]")
+    check("曲庫：點歌曲看所有譜面（譜師、物量）", song.is_visible() and song.locator(".mai-sheets-t tr").count() > 2)
+    song.locator("#song-fav").click()
+    check("我的清單：加入後按鈕變「已在」", "已在" in song.locator("#song-fav").inner_text())
+    song.locator(".dlg-x").click()
+    page.locator("#mai-filter [data-b='mine']").click()
+    check("我的清單：只看清單裡的歌", page.locator(".mai-song").count() == 1)
+    page.locator(".mai-song .mai-sheet:not(.dim)").first.click()
+    check("歌曲檢視：點難度看各評級 Rating", page.locator("#chart[open] .mai-rt").is_visible())
+    page.locator("#chart .dlg-x").click()
+    page.locator("#mai-filter [data-b='mine']").click()
+
+    page.locator(".mai-views button", has_text="定數表").click()
+    page.locator("#mai-draw").click()
+    page.locator("#draw [data-n='draw'][data-v='3']").click()
+    got = nums("#draw-res .b50-score b")
+    check("抽歌：從篩選結果抽 3 首", len(got) == 3 and all(14.6 <= c <= 14.9 for c in got), str(got))
+    page.locator("#draw [data-dd='diffs'][data-v='3']").click()
+    diffs_txt = page.locator("#draw-res .b50-diff").all_inner_texts()
+    check("抽歌：在抽歌視窗直接選難度", bool(diffs_txt) and all(t == "MASTER" for t in diffs_txt), str(diffs_txt))
+    page.locator("#draw [data-dd='diffs'][data-v='3']").click()
+    page.select_option("#draw-lvmin", "14")
+    page.locator("#draw .dlg-x").click()
+    page.wait_for_timeout(300)   # 視窗的 close 事件之後才重畫曲庫
+    check("抽歌：視窗裡改的等級會同步到篩選", page.locator('select[data-f="lvMin"]').input_value() == "14",
+          page.locator('select[data-f="lvMin"]').input_value())
+    page.select_option('select[data-f="lvMin"]', "14+")
+    page.reload(wait_until="networkidle")
+    page.wait_for_selector("#mai-res .mai-lrow")
+    check("曲庫：重新整理後分頁與篩選都還在", page.locator(".mai-tabs [data-on='1']").inner_text() == "📚 曲庫"
+          and shown_count() == count_where("14+"))
+
+    # ---------- 🎖️ 段位 ----------
+    def course(region, kind):
+        return next(c for c in songs["dan"] if c[1] == region and c[2] == kind)
+
+    page.locator(".mai-tabs button", has_text="段位").click()
+    page.wait_for_selector("#mai-body .mai-lvh")
+    ci = course("intl", "dan")
+    heads = page.locator("#mai-body .mai-lvh").all_inner_texts()
+    check("段位：預設國際版最新的段位認定", page.locator("#dan-ver").input_value() == ci[0]
+          and len(heads) == len(ci[3]) and heads[0].startswith(ci[3][0][0])
+          and page.locator("#mai-body .mai-lrow").count() == sum(len(sec[2]) for sec in ci[3]),
+          f"{page.locator('#dan-ver').input_value()} {len(heads)}")
+    page.locator("[data-dr='region'][data-v='jp']").click()
+    cj = course("jp", "dan")
+    check("段位：切換日版用日版的課題曲", page.locator("#dan-ver").input_value() == cj[0], cj[0])
+    page.locator("[data-dk='kind'][data-v='friend']").click()
+    check("段位：友人對戰顯示對手評級", page.locator("#dan-ver").input_value() == course("jp", "friend")[0]
+          and "對手" in page.locator("#mai-body .mai-extra").first.inner_text())
+    page.locator("#mai-body .mai-lrow").first.click()
+    check("段位：點課題曲看各評級 Rating", page.locator("#chart[open] .mai-rt").is_visible())
+    page.locator("#chart .dlg-x").click()
+    page.locator("[data-dr='region'][data-v='intl']").click()
+    ctx.close()
+
     # ---------- 營業狀態（固定時鐘） ----------
     ctx = b.new_context(timezone_id="America/New_York")
     page = ctx.new_page()
@@ -535,6 +866,8 @@ export const deleteDoc = ref => call(ref.path, 'delete', '{}');
     page.goto(URL, wait_until="networkidle")
     w = page.evaluate("()=>[innerWidth,document.documentElement.scrollWidth]")
     check("手機 375px：沒有橫向溢出（清單）", w[1] <= w[0], f"{w}")
+    nav = page.locator("#tabs").bounding_box()
+    check("手機：分頁切換在畫面底部", nav and abs(nav["y"] + nav["height"] - 740) < 2 and nav["width"] >= 374, str(nav))
     page.screenshot(path=os.path.join(SHOTS, "mobile_list.png"))
     page.locator(".viewtoggle button", has_text="地圖").click()
     page.wait_for_selector(".mc", timeout=15000)

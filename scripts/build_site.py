@@ -6,7 +6,7 @@
 #       記住偏好(localStorage)、清單/地圖雙檢視、資料更新日。
 # 用法：python scripts/build_site.py
 import paths
-import csv, os, re, json, datetime, hashlib
+import csv, os, re, json, datetime, hashlib, shutil
 from collections import Counter
 from urllib.parse import quote
 from tw_brands import brand_zh, MANUAL
@@ -123,8 +123,8 @@ print("音遊按鈕：", "、".join(f"{g}({cnt[g]})" for g in rhythm) or "（無
 print("其他遊戲（下拉）：", len(others), "款")
 
 # ---------------- 輸出 site/ ----------------
-STATIC = ["style.css", "account.js", "conquest.js", "stats.js", "app.js", "manifest.webmanifest", "icon.svg",
-          "privacy.html"]   # 原樣複製的前端檔案
+STATIC = ["style.css", "account.js", "conquest.js", "stats.js", "mai.js", "b50.js", "app.js", "manifest.webmanifest",
+          "icon.svg", "privacy.html", "bookmarklet.js"]   # 原樣複製的前端檔案
 
 
 def read_template(name):
@@ -152,13 +152,28 @@ html_out = (read_template("index.html")
             .replace("__CONFIG__", inline_json(config))
             .replace("__DATA__", inline_json(rows)))
 os.makedirs(paths.SITE, exist_ok=True)
+# CSS／JS 網址加上內容雜湊（style.css?v=…）：新版上線時舊的 Service Worker 快取對不到，一定拿新檔，
+# 不會出現「新的 HTML 配舊的 CSS」排版跑掉
+VERSIONED = [n for n in STATIC if n.endswith((".css", ".js"))]
+ver = {n: hashlib.sha256(read_template(n).encode()).hexdigest()[:8] for n in VERSIONED}
+for n, h in ver.items():
+    html_out = html_out.replace(f'"{n}"', f'"{n}?v={h}"')
 write_text("index.html", html_out)
 for name in STATIC:
     write_text(name, read_template(name))
+SONGS = os.path.join(paths.DATA, "songs.json")   # 🎵 maimai 頁的曲庫（scripts/songs.py 產生）
+if os.path.exists(SONGS):
+    write_text("songs.json", open(SONGS, encoding="utf-8").read())
+COVERS = os.path.join(paths.DATA, "covers")      # 封面存在自己這邊，來源關了也還在
+if os.path.isdir(COVERS):
+    shutil.copytree(COVERS, os.path.join(paths.SITE, "covers"), dirs_exist_ok=True)
 
 # Service Worker 快取名稱 = 網站內容的雜湊：任何檔案改了就換新快取，不用再手動改版本號
 digest = hashlib.sha256("".join([html_out] + [read_template(n) for n in STATIC]).encode()).hexdigest()[:10]
-write_text("sw.js", read_template("sw.js").replace("__CACHE__", digest))
+sw = read_template("sw.js").replace("__CACHE__", digest)
+for n, h in ver.items():
+    sw = sw.replace(f"'./{n}'", f"'./{n}?v={h}'")
+write_text("sw.js", sw)
 
 
 def public(r):
