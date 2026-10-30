@@ -555,14 +555,21 @@ export const serverTimestamp = () => Date.now();
     D.wait_for_timeout(300)
     check("代抓：工作還在排隊時不能再送", "太快" in D.locator("#toast").inner_text())
     cloud["jobs/g1"] = {**j, "status": "sent", "msg": "已送出好友申請，請到 maimai DX NET 接受「音GO」",
-                         "at": j["at"] - 120000}
-    D.wait_for_selector("#mf-b50:not([disabled])", timeout=8000)
+                         "at": D.evaluate("()=>Date.now()") - 52000}   # 冷卻還剩約 8 秒
+    D.wait_for_selector("#mf-b50[disabled]", timeout=8000)
+    D.wait_for_selector("#mf-b50:not([disabled])", timeout=15000)
+    check("代抓：冷卻時間到了按鈕自己變可以按（不用切換畫面）", D.locator("#mf-b50").is_enabled())
     check("代抓：申請送出後顯示「我接受了」按鈕與說明", "我接受了" in D.locator("#mf-b50").inner_text()
           and "接受「音GO」" in D.locator("#mai-friend").inner_text())
     D.locator("#mf-b50").click()
     D.wait_for_selector("#mai-friend .busy")
     j = cloud.get("jobs/g1") or {}
     check("代抓：按下後送出抓成績的工作", j.get("type") == "b50" and j.get("status") == "queued", str(j))
+    cloud["jobs/g1"] = {**j, "at": j["at"] - 180000}   # 排隊 3 分鐘都沒人接手
+    D.wait_for_function("()=>document.querySelector('#mai-friend').textContent.includes('沒有回應')", timeout=8000)
+    check("代抓：機器人太久沒接手會提示可能離線", D.locator("#mai-friend .mf-msg.err").is_visible()
+          and not D.locator("#mai-friend .busy").count())
+    cloud["jobs/g1"] = j
     now = D.evaluate("()=>Date.now()")
     cloud["users/g1/mai/b50"] = {"at": now, "data": json.dumps({
         "v": 1, "at": now, "name": "好友代抓", "rating": 13000, "scores": [], "new": [], "src": "friend",
