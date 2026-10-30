@@ -238,6 +238,8 @@ function bindFriend() {
       sendJob('friend', code);
     };
   if ($('mf-b50')) $('mf-b50').onclick = () => sendJob('b50', mai.job.code);
+  // 切回這頁時還在等的工作：確定有在追（之前的追蹤可能因為 15 分鐘到了而停掉）
+  if (mai.job && JOB_BUSY.includes(mai.job.status) && !mai.watching) watchJob();
   // 第一次顯示：讀一次目前的工作狀態
   if (acct.user && mai.job === undefined && !mai.jobLoading) {
     mai.jobLoading = true;
@@ -267,7 +269,7 @@ async function sendJob(type, code) {
   paintFriend();
   watchJob();
 }
-// 每幾秒看一次工作做完了沒（最多等 15 分鐘）
+// 每幾秒看一次工作做完了沒（最多等 15 分鐘）；一次讀取失敗（斷網、分頁在背景）不會讓它停掉
 async function watchJob() {
   if (mai.watching) return;
   mai.watching = true;
@@ -275,8 +277,14 @@ async function watchJob() {
   try {
     while (acct.user && Date.now() - t0 < 15 * 60000) {
       await new Promise(r => setTimeout(r, 3000));
-      const was = mai.job,
-        j = (mai.job = await getMaiJob());
+      let j;
+      try {
+        j = await getMaiJob();
+      } catch (_) {
+        continue;
+      }
+      const was = mai.job;
+      mai.job = j;
       if (!j || !JOB_BUSY.includes(j.status)) {
         if (j && j.type === 'b50' && j.status === 'done') {
           await loadMaiCloud();
@@ -287,11 +295,15 @@ async function watchJob() {
       }
       if (!was || was.status !== j.status || jobStale(was) !== jobStale(j)) paintFriend();
     }
-  } catch (_) {
   } finally {
     mai.watching = false;
   }
 }
+// 分頁從背景切回來時，還在等的工作馬上再看一次
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && mai.job && JOB_BUSY.includes(mai.job.status))
+    watchJob();
+});
 
 const B50_MODES = [
   ['list', '🏅 B50'],
