@@ -674,6 +674,12 @@ export const serverTimestamp = () => Date.now();
     check("B50：重新整理後成績還在", page.locator("#b50 .b50-total b").inner_text() == str(want))
     check("B50：匯入時記一筆 Rating 紀錄",
           page.evaluate("()=>JSON.parse(localStorage.getItem('maimai:mai')).hist.map(x=>x[1])") == [12345])
+    page.locator("#b50-img").click()
+    page.wait_for_selector("#b50img-pic", timeout=15000)
+    pic = page.evaluate("()=>{const i=document.querySelector('#b50img-pic');return [i.src.slice(0,22),i.naturalWidth]}")
+    check("B50：匯出圖片（PNG、有下載按鈕）", pic == ["data:image/png;base64,", 2400]
+          and page.locator("#b50img-dl").get_attribute("download").endswith(".png"), str(pic))
+    page.locator("#b50img .dlg-x").click()
 
     # ---------- 🎵 maimai 工具（按鈕） ----------
     page.locator(".mai-modes .chip", has_text="推分建議").click()

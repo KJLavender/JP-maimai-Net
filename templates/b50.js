@@ -346,7 +346,7 @@ function renderB50(el, S) {
     <div class="chips mai-modes">${B50_MODES.map(
       ([m, n]) =>
         `<span class="chip rad" data-m="${m}" data-on="${m === mode ? 1 : 0}">${n}</span>`,
-    ).join('')}</div>
+    ).join('')}<span class="chip share" id="b50-img">🖼️ 匯出圖片</span></div>
     ${body}
     ${acct.user ? '' : friendHTML()}
     ${guideHTML(false)}
@@ -357,16 +357,260 @@ function renderB50(el, S) {
     }定數資料：arcade-songs（更新 ${esc(S.updated)}）${
       r.unknown.length ? ` · ${r.unknown.length} 個譜面找不到定數，沒有算進去` : ''
     }</p>`;
-  el.querySelectorAll('.mai-modes .chip').forEach(
+  el.querySelectorAll('.mai-modes .chip[data-m]').forEach(
     c =>
       (c.onclick = () => {
         mai.b50mode = c.dataset.m;
         renderB50(el, S);
       }),
   );
+  el.querySelector('#b50-img').onclick = () => openB50Image(data, r, S);
   bindCharts(el);
   bindGuide(el);
   bindFriend();
+}
+
+/* ---- 🖼️ B50 圖片：用 Canvas 畫（封面在本站 covers/，同源才能匯出） ---- */
+const RANK_COLOR = {
+  'SSS+': '#ffd23f',
+  SSS: '#ffc23f',
+  'SS+': '#ffad5c',
+  SS: '#ff9f5c',
+  'S+': '#ff8a65',
+  S: '#ff8a65',
+};
+const loadImg = src =>
+  new Promise(res => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = () => res(null);
+    i.src = src;
+  });
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function fitText(ctx, t, w) {
+  if (ctx.measureText(t).width <= w) return t;
+  while (t && ctx.measureText(t + '…').width > w) t = t.slice(0, -1);
+  return t + '…';
+}
+async function drawB50Image(data, r, S) {
+  const F = getComputedStyle(document.body).fontFamily,
+    font = (px, w = 700) => `${w} ${px}px ${F}`,
+    W = 1200,
+    PAD = 32,
+    COLS = 5,
+    GAP = 12,
+    CW = (W - PAD * 2 - GAP * (COLS - 1)) / COLS,
+    CH = Math.round(CW * 0.72),
+    VER = 22,
+    HEAD = 170,
+    SEC = 52;
+  const nNew = Math.ceil(r.b15.length / COLS),
+    nOld = Math.ceil(r.b35.length / COLS),
+    H = PAD + HEAD + SEC + nNew * (CH + VER + GAP) + SEC + nOld * (CH + GAP) + 44;
+  const cv = document.createElement('canvas'),
+    ctx = cv.getContext('2d'),
+    k = 2;
+  cv.width = W * k;
+  cv.height = H * k;
+  ctx.scale(k, k);
+  const imgs = new Map();
+  await Promise.all(
+    [...new Set([...r.b15, ...r.b35].map(x => x.img).filter(Boolean))].map(async n =>
+      imgs.set(n, await loadImg(COVER + n)),
+    ),
+  );
+  // 背景
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#f7f2ff');
+  bg.addColorStop(1, '#eaf4ff');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+  // 標頭：名字、日期、Rating 牌
+  const rating = data.rating || r.total,
+    when = new Date(data.at).toLocaleString('zh-TW', { hour12: false }),
+    vers = S.new.join(' ／ ');
+  ctx.fillStyle = '#7a7690';
+  ctx.font = font(16, 500);
+  ctx.fillText(`${when} · 國際版 · 新曲 ${vers}`, PAD, PAD + 18);
+  ctx.fillStyle = '#1c1b2b';
+  ctx.font = font(44, 800);
+  ctx.fillText(fitText(ctx, data.name, W - PAD * 2 - 300), PAD, PAD + 72);
+  const px = W - PAD - 260,
+    py = PAD + 8;
+  const plate = ctx.createLinearGradient(px, py, px + 260, py + 84);
+  ['#ff6fb5', '#ffd23f', '#5fe3a1', '#5fb8ff', '#b07cff'].forEach((c, i) =>
+    plate.addColorStop(i / 4, c),
+  );
+  roundRect(ctx, px, py, 260, 84, 14);
+  ctx.fillStyle = plate;
+  ctx.fill();
+  roundRect(ctx, px + 8, py + 8, 244, 68, 10);
+  ctx.fillStyle = '#2a1f3d';
+  ctx.fill();
+  ctx.fillStyle = '#ffe680';
+  ctx.font = font(48, 900);
+  ctx.textAlign = 'center';
+  ctx.fillText(String(rating), px + 130, py + 60);
+  ctx.textAlign = 'left';
+  // 統計列
+  const avg = a => (a.length ? a.reduce((t, x) => t + x.ra, 0) / a.length : 0);
+  const stats = [
+    ['B50 合計', String(r.total)],
+    ['新曲 B15', String(r.new15)],
+    ['舊曲 B35', String(r.old35)],
+    ['來源', data.src === 'friend' ? '好友代碼代抓' : '書籤工具'],
+  ];
+  stats.forEach(([l, v], i) => {
+    const x = PAD + i * 200;
+    ctx.fillStyle = '#7a7690';
+    ctx.font = font(14, 500);
+    ctx.fillText(l, x, PAD + 118);
+    ctx.fillStyle = '#1c1b2b';
+    ctx.font = font(24, 800);
+    ctx.fillText(v, x, PAD + 148);
+  });
+  let y = PAD + HEAD;
+  const section = (title, rows) => {
+    const a = avg(rows);
+    ctx.fillStyle = '#1c1b2b';
+    ctx.font = font(26, 900);
+    ctx.fillText(title, PAD, y + 32);
+    ctx.fillStyle = '#7a7690';
+    ctx.font = font(15, 600);
+    ctx.textAlign = 'right';
+    ctx.fillText(`平均 ${a.toFixed(2)} [~${Math.round(a * 50)}]`, W - PAD, y + 32);
+    ctx.textAlign = 'left';
+    y += SEC;
+  };
+  const card = (x, cy, row, showVer) => {
+    const color = DIFF_COLORS[row.diff];
+    ctx.save();
+    roundRect(ctx, x, cy, CW, CH, 10);
+    ctx.clip();
+    ctx.fillStyle = '#2a2540';
+    ctx.fillRect(x, cy, CW, CH);
+    const im = imgs.get(row.img);
+    if (im) {
+      const s = Math.max(CW / im.width, CH / im.height),
+        iw = im.width * s,
+        ih = im.height * s;
+      ctx.drawImage(im, x + (CW - iw) / 2, cy + (CH - ih) / 2, iw, ih);
+    }
+    const g = ctx.createLinearGradient(0, cy, 0, cy + CH);
+    g.addColorStop(0.25, 'rgba(10,8,20,0)');
+    g.addColorStop(1, 'rgba(10,8,20,.9)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, cy, CW, CH);
+    // 右上：單曲 Rating
+    ctx.fillStyle = color;
+    roundRect(ctx, x + CW - 64, cy - 10, 74, 46, 10);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = font(24, 900);
+    ctx.textAlign = 'right';
+    ctx.fillText(String(row.ra), x + CW - 8, cy + 26);
+    // 左上：FC／AP
+    if (row.fc) {
+      ctx.textAlign = 'left';
+      ctx.font = font(12, 900);
+      const t = FC_LABEL[row.fc] || '',
+        tw = ctx.measureText(t).width + 12;
+      ctx.fillStyle = /^ap/.test(row.fc) ? '#ffd23f' : '#3fdd90';
+      roundRect(ctx, x + 6, cy + 6, tw, 20, 10);
+      ctx.fill();
+      ctx.fillStyle = '#1c1b2b';
+      ctx.fillText(t, x + 12, cy + 20);
+    }
+    // 下方：定數、達成率、評級、歌名、DX／ST
+    const rank = rankOf(row.ach)[2];
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#fff';
+    ctx.font = font(20, 900);
+    ctx.fillText(constText(row.c, row.est), x + 8, cy + CH - 30);
+    const cw = ctx.measureText(constText(row.c, row.est)).width;
+    ctx.font = font(12, 600);
+    ctx.fillText(row.ach.toFixed(4) + '%', x + 14 + cw, cy + CH - 30);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = RANK_COLOR[rank] || '#fff';
+    ctx.font = font(15, 900);
+    ctx.fillText(rank, x + CW - 8, cy + CH - 30);
+    ctx.fillStyle = '#fff';
+    ctx.font = font(11, 800);
+    ctx.fillText(row.kind === 'dx' ? 'DX' : 'ST', x + CW - 8, cy + CH - 10);
+    ctx.textAlign = 'left';
+    ctx.font = font(13, 600);
+    ctx.fillText(fitText(ctx, row.title, CW - 44), x + 8, cy + CH - 10);
+    ctx.restore();
+    // 難度顏色的外框
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    roundRect(ctx, x + 1.5, cy + 1.5, CW - 3, CH - 3, 9);
+    ctx.stroke();
+    if (showVer) {
+      const v = S.vers.find(z => z[0] === row.s[2]);
+      ctx.fillStyle = '#ffd6ec';
+      roundRect(ctx, x, cy + CH + 3, CW, VER - 5, 6);
+      ctx.fill();
+      ctx.fillStyle = '#c2185b';
+      ctx.font = font(12, 800);
+      ctx.textAlign = 'center';
+      ctx.fillText(v ? v[0] : row.s[2], x + CW / 2, cy + CH + 15);
+      ctx.textAlign = 'left';
+    }
+  };
+  const grid = (rows, showVer) => {
+    rows.forEach((row, i) => {
+      card(
+        PAD + (i % COLS) * (CW + GAP),
+        y + Math.floor(i / COLS) * (CH + GAP + (showVer ? VER : 0)),
+        row,
+        showVer,
+      );
+    });
+    y += Math.ceil(rows.length / COLS) * (CH + GAP + (showVer ? VER : 0));
+  };
+  section('NEW', r.b15);
+  grid(r.b15, true);
+  section('OTHERS', r.b35);
+  grid(r.b35, false);
+  ctx.fillStyle = '#9a96b0';
+  ctx.font = font(13, 500);
+  ctx.fillText(
+    `音GO · ${location.host || 'otogo'} · 定數資料 arcade-songs（${S.updated}）`,
+    PAD,
+    H - 18,
+  );
+  return cv;
+}
+async function openB50Image(data, r, S) {
+  const d = ensureDialog('b50img', '<h2>🖼️ B50 圖片</h2><div class="empty">畫圖中…</div>');
+  d.classList.add('dlg-wide');
+  if (!d.open) d.showModal();
+  const cv = await drawB50Image(data, r, S),
+    url = cv.toDataURL('image/png'),
+    name = `otogo-b50-${new Date(data.at).toISOString().slice(0, 10)}.png`;
+  d.querySelector('.empty').outerHTML =
+    `<img id="b50img-pic" class="b50-img" alt="B50 圖片" src="${url}">
+    <div class="cq-actions"><a class="btn" id="b50img-dl" download="${name}" href="${url}">⬇️ 下載圖片</a>
+    ${navigator.canShare ? '<button class="btn ghost" id="b50img-share">📤 分享</button>' : ''}</div>
+    <p class="dlg-hint">手機也可以長按圖片儲存。</p>`;
+  const sh = d.querySelector('#b50img-share');
+  if (sh)
+    sh.onclick = () =>
+      cv.toBlob(async b => {
+        const file = new File([b], name, { type: 'image/png' });
+        if (navigator.canShare({ files: [file] }))
+          navigator.share({ files: [file] }).catch(() => {});
+        else toast('這個瀏覽器不支援分享圖片，請用下載');
+      });
 }
 
 // 存新成績：順便記一筆 Rating 紀錄（同一次更新不重複記）
