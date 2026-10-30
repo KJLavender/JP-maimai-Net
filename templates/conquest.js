@@ -199,6 +199,7 @@ function renderConquest(el) {
   <p class="cq-hint">在清單或地圖的店家上按「🏁 標記去過」就會記下來；點${region === 'jp' ? '縣名' : '縣市'}可以看那裡的機廳。</p>
   <div class="cq-actions"><button class="btn small" id="cq-export">📷 匯出圖片</button></div>
   ${syncPanelHTML()}
+  ${boardHTML()}
   <details class="cq-more"><summary>不想登入？用備份代碼搬紀錄</summary>
     <p class="cq-hint">紀錄平常只存在這個瀏覽器。換手機時先按「備份」複製代碼，到新手機按「還原」貼上。</p>
     <div class="cq-actions">
@@ -232,6 +233,7 @@ function renderConquest(el) {
   el.querySelector('#cq-backup').onclick = backupVisited;
   el.querySelector('#cq-restore').onclick = restoreVisited;
   bindSyncPanel(el);
+  bindBoard(el);
 }
 
 /* ---- 備份／還原：把「去過」和「收藏」轉成一串代碼，換手機時貼上 ---- */
