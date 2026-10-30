@@ -212,11 +212,19 @@ const friendHTML = () =>
 function paintFriend() {
   const el = document.getElementById('mai-friend');
   if (!el) return;
+  const typed = document.getElementById('mf-code');
   el.outerHTML = friendHTML();
+  if (typed && document.getElementById('mf-code'))
+    document.getElementById('mf-code').value = typed.value;
   bindFriend();
 }
 function bindFriend() {
   const $ = id => document.getElementById(id);
+  // 冷卻時間到了自動把按鈕打開（剩餘分鐘數每 30 秒更新）
+  clearTimeout(mai.waitTimer);
+  const left = jobLeft(mai.job);
+  if (left > 0 && $('mai-friend'))
+    mai.waitTimer = setTimeout(paintFriend, Math.min(left + 200, 30000));
   if ($('mf-login')) $('mf-login').onclick = openLogin;
   if ($('mf-change'))
     $('mf-change').onclick = () => {
