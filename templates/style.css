@@ -1641,6 +1641,13 @@ button.b50-row:hover {
 .mai-dan-bar .chips {
   flex: none;
 }
+.b50-img {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
 .mai-extra {
   font-size: 0.7rem;
   color: var(--muted);
