@@ -563,6 +563,11 @@ export const serverTimestamp = () => Date.now();
     D.wait_for_selector("#mai-friend .busy")
     j = cloud.get("jobs/g1") or {}
     check("代抓：按下後送出抓成績的工作", j.get("type") == "b50" and j.get("status") == "queued", str(j))
+    cloud["jobs/g1"] = {**j, "at": j["at"] - 180000}   # 排隊 3 分鐘都沒人接手
+    D.wait_for_function("()=>document.querySelector('#mai-friend').textContent.includes('沒有回應')", timeout=8000)
+    check("代抓：機器人太久沒接手會提示可能離線", D.locator("#mai-friend .mf-msg.err").is_visible()
+          and not D.locator("#mai-friend .busy").count())
+    cloud["jobs/g1"] = j
     now = D.evaluate("()=>Date.now()")
     cloud["users/g1/mai/b50"] = {"at": now, "data": json.dumps({
         "v": 1, "at": now, "name": "好友代抓", "rating": 13000, "scores": [], "new": [], "src": "friend",

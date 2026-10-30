@@ -166,6 +166,8 @@ const JOB_BUSY = ['queued', 'running'];
 const JOB_WAIT = { b50: 10, friend: 1 }; // 同一個帳號兩次工作之間要隔幾分鐘（firestore.rules 也有擋）
 const jobMs = t => (t && t.toMillis ? t.toMillis() : t || 0);
 const jobLeft = j => (j ? jobMs(j.at) + JOB_WAIT[j.type] * 60000 - Date.now() : 0);
+// 排隊超過 2 分鐘還沒人接手：機器人（otogo_worker.py）多半沒在跑
+const jobStale = j => !!j && j.status === 'queued' && Date.now() - jobMs(j.at) > 2 * 60000;
 function friendInner() {
   if (!acct.user)
     return LS.get('user', null)
@@ -176,6 +178,9 @@ function friendInner() {
   if (j === undefined) return '<p class="cq-hint">載入中…</p>';
   const msg =
     j && j.msg ? `<p class="mf-msg${j.status === 'error' ? ' err' : ''}">${esc(j.msg)}</p>` : '';
+  if (jobStale(j))
+    return `<p class="mf-msg err">🤖 機器人目前沒有回應，可能暫時離線。</p>
+      <p class="cq-hint">工作會留著，機器人上線後就會處理（${esc(j.code)}）。急著看成績的話，可以先用下面的書籤工具匯入。</p>`;
   if (j && JOB_BUSY.includes(j.status))
     return `<p class="mf-msg busy">${
       j.status === 'queued'
@@ -272,7 +277,7 @@ async function watchJob() {
         paintFriend();
         break;
       }
-      if (!was || was.status !== j.status) paintFriend();
+      if (!was || was.status !== j.status || jobStale(was) !== jobStale(j)) paintFriend();
     }
   } catch (_) {
   } finally {
