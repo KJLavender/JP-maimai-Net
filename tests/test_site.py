@@ -696,11 +696,12 @@ export const serverTimestamp = () => Date.now();
     row = page.locator("#b50 .b50-row").first
     yt = row.locator(".yt-btn").get_attribute("href") or ""
     title = row.locator(".b50-title").inner_text()
-    # 不真的打開 YouTube：擋掉預設動作，只確認點按鈕不會跳出譜面視窗
-    page.evaluate("()=>{const a=document.querySelector('#b50 .b50-row .yt-btn');"
-                  "a.addEventListener('click',e=>e.preventDefault(),{once:true});a.click()}")
-    check("每首都有 YouTube 手元按鈕（點了開新分頁、不會開譜面視窗）",
-          yt.startswith("https://www.youtube.com/results?search_query=") and title in unquote(yt)
+    # 不真的打開 YouTube：在 document 才擋，先記下列的 onclick 有沒有把連結擋掉
+    blocked = page.evaluate("()=>{let p=null;document.addEventListener('click',e=>{p=e.defaultPrevented;"
+                            "e.preventDefault()},{once:true});"
+                            "document.querySelector('#b50 .b50-row .yt-btn').click();return p}")
+    check("每首都有 YouTube 手元按鈕（點了開新分頁、不會開譜面視窗）", blocked is False and
+          yt.startswith("https://www.youtube.com/results?search_query=") and title.replace("-", "\\-") in unquote(yt)
           and "手元" in unquote(yt) and row.locator(".yt-btn").get_attribute("target") == "_blank"
           and not page.locator("#chart[open]").count(), unquote(yt)[-50:])
 
