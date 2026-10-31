@@ -158,9 +158,15 @@ const ytURL = (title, diff) =>
 const ytBtn = (title, diff) =>
   `<a class="yt-btn" href="${ytURL(title, diff)}" target="_blank" rel="noopener" title="YouTube 手元影片" aria-label="YouTube 手元影片">▶</a>`;
 // 譜面列是可以點的 div（裡面有 YouTube 連結，不能用 button）：點到連結時不開譜面視窗
+// 用大括號：onclick/onkeydown 回傳 false 會等於 preventDefault，連結就點不開
 function onRow(b, fn) {
-  b.onclick = e => !e.target.closest('a') && fn();
-  if (b.tagName !== 'BUTTON') b.onkeydown = e => e.key === 'Enter' && e.target === b && fn();
+  b.onclick = e => {
+    if (!e.target.closest('a')) fn();
+  };
+  if (b.tagName !== 'BUTTON')
+    b.onkeydown = e => {
+      if (e.key === 'Enter' && e.target === b) fn();
+    };
 }
 function bindCharts(el) {
   el.querySelectorAll('.mai-chart').forEach(b =>
