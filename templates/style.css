@@ -1448,15 +1448,44 @@ body[data-view='b50'] .filters {
 .mai-levels {
   margin: 12px 0 4px;
 }
-button.b50-row {
+.b50-row[role='button'] {
   width: 100%;
   text-align: left;
   font: inherit;
   color: inherit;
   cursor: pointer;
 }
-button.b50-row:hover {
+.b50-row[role='button']:hover,
+.b50-row[role='button']:focus-visible {
   border-color: var(--magenta);
+  outline: none;
+}
+.yt-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #ff0033;
+  color: #fff;
+  font-size: 0.72rem;
+  text-decoration: none;
+  padding-left: 2px;
+}
+.yt-btn:hover {
+  filter: brightness(1.1);
+}
+.mai-sheets-t .yt-btn {
+  width: 24px;
+  height: 24px;
+  font-size: 0.6rem;
+}
+.btn.yt-wide {
+  background: #ff0033;
+  color: #fff;
+  text-decoration: none;
 }
 .mai-input {
   width: 100%;
