@@ -149,22 +149,32 @@ function coverErr(el) {
 }
 const constText = (c, est) => (est ? '≈' : '') + c.toFixed(1);
 const regionIdx = () => (mai.f && mai.f.region === 'jp' ? 0 : 1);
+// YouTube 手元影片（搜尋「歌名 難度 maimai 手元」）
+const ytURL = (title, diff) =>
+  'https://www.youtube.com/results?search_query=' +
+  encodeURIComponent(`${title} ${diff} maimai 手元`);
+const ytBtn = (title, diff) =>
+  `<a class="yt-btn" href="${ytURL(title, diff)}" target="_blank" rel="noopener" title="YouTube 手元影片" aria-label="YouTube 手元影片">▶</a>`;
+// 譜面列是可以點的 div（裡面有 YouTube 連結，不能用 button）：點到連結時不開譜面視窗
+function onRow(b, fn) {
+  b.onclick = e => !e.target.closest('a') && fn();
+  if (b.tagName !== 'BUTTON') b.onkeydown = e => e.key === 'Enter' && e.target === b && fn();
+}
 function bindCharts(el) {
-  el.querySelectorAll('.mai-chart').forEach(
-    b =>
-      (b.onclick = () => {
-        const s = mai.songs.idx.get(b.dataset.k),
-          diff = +b.dataset.d;
-        openChart({
-          title: s[0],
-          kind: s[1],
-          ver: s[2],
-          img: s[3],
-          diff,
-          c: s[4][diff],
-          est: s[5] & (1 << diff),
-        });
-      }),
+  el.querySelectorAll('.mai-chart').forEach(b =>
+    onRow(b, () => {
+      const s = mai.songs.idx.get(b.dataset.k),
+        diff = +b.dataset.d;
+      openChart({
+        title: s[0],
+        kind: s[1],
+        ver: s[2],
+        img: s[3],
+        diff,
+        c: s[4][diff],
+        est: s[5] & (1 << diff),
+      });
+    }),
   );
 }
 
@@ -206,7 +216,8 @@ function openChart(t) {
         : ''
     }
     <table class="mai-rt"><tr><th>評級</th><th>達成率</th><th>Rating</th></tr>${rows}</table>
-    <p class="cq-hint">ALL PERFECT 以上再 +1。</p>`,
+    <p class="cq-hint">ALL PERFECT 以上再 +1。</p>
+    <div class="cq-actions"><a class="btn yt-wide" href="${ytURL(t.title, DIFF_NAMES[diff])}" target="_blank" rel="noopener">▶ YouTube 手元影片</a></div>`,
   );
   d.showModal();
 }
@@ -238,7 +249,8 @@ function openSong(s) {
         <td>${TYPE_NAMES[sh.t]}</td>
         <td><span class="b50-diff" style="background:${diffColor(sh)}">${esc(diffName(sh))}</span></td>
         <td>${esc(v.lv)}</td><td><b>${sh.t === 2 ? '—' : constText(v.c, v.est)}</b></td>
-        <td>${esc(S.des[sh.des] || '—')}</td><td>${sh.notes ? sh.notes[5] : '—'}</td></tr>`;
+        <td>${esc(S.des[sh.des] || '—')}</td><td>${sh.notes ? sh.notes[5] : '—'}</td>
+        <td>${ytBtn(s.title, diffName(sh))}</td></tr>`;
     })
     .join('');
   const d = ensureDialog(
@@ -256,9 +268,8 @@ function openSong(s) {
         .join('')}</div>
     </div></div>
     ${s.comment ? `<p class="cq-hint">${esc(s.comment)}</p>` : ''}
-    <div class="mf-row"><button class="btn small${fav ? '' : ' ghost'}" id="song-fav">${fav ? '★ 已在我的清單' : '☆ 加入我的清單'}</button>
-      <a class="btn ghost small" target="_blank" rel="noopener" href="https://www.youtube.com/results?search_query=${encodeURIComponent('maimai ' + s.title + ' 譜面確認')}">▶ YouTube 譜面</a></div>
-    <table class="mai-rt mai-sheets-t"><tr><th>類型</th><th>難度</th><th>等級</th><th>定數</th><th>譜師</th><th>物量</th></tr>${rows}</table>
+    <div class="mf-row"><button class="btn small${fav ? '' : ' ghost'}" id="song-fav">${fav ? '★ 已在我的清單' : '☆ 加入我的清單'}</button></div>
+    <table class="mai-rt mai-sheets-t"><tr><th>類型</th><th>難度</th><th>等級</th><th>定數</th><th>譜師</th><th>物量</th><th>手元</th></tr>${rows}</table>
     <p class="cq-hint">${ri ? '國際版' : '日版'}的等級／定數。點譜面看各評級 Rating。</p>`,
   );
   d.classList.add('dlg-wide');
@@ -269,8 +280,8 @@ function openSong(s) {
     openSong(s);
     refreshLib();
   };
-  d.querySelectorAll('tr.mai-tap').forEach(
-    tr => (tr.onclick = () => openChart(sheetChart(s.sheets[+tr.dataset.i], ri))),
+  d.querySelectorAll('tr.mai-tap').forEach(tr =>
+    onRow(tr, () => openChart(sheetChart(s.sheets[+tr.dataset.i], ri))),
   );
   if (!d.open) d.showModal();
 }
@@ -520,23 +531,23 @@ function renderLibrary(el, S) {
 function sheetRowHTML(x, i, extra) {
   const { s, sh, v } = x,
     designer = mai.songs.des[sh.des];
-  return `<button class="b50-row mai-lrow" data-s="${s.i}" data-i="${s.sheets.indexOf(sh)}">
+  return `<div class="b50-row mai-lrow" role="button" tabindex="0" data-s="${s.i}" data-i="${s.sheets.indexOf(sh)}">
     ${i == null ? '' : `<span class="b50-no">${i + 1}</span>`}${coverImg(s.img)}
     <div class="b50-info"><div class="b50-title">${esc(s.title)}</div>
       <div class="b50-meta"><span class="b50-diff" style="background:${diffColor(sh)}">${esc(diffName(sh))}</span>
       ${TYPE_NAMES[sh.t]} · Lv ${esc(v.lv)} · ${esc(mai.songs.vers[v.ver] ? mai.songs.vers[v.ver][1] : '')}${designer ? ' · ' + esc(designer) : ''}</div>${extra ? `<div class="mai-extra">${extra}</div>` : ''}</div>
     <div class="b50-score"><b>${sh.t === 2 ? esc(v.lv) : constText(v.c, v.est)}</b><small>${sh.t === 2 ? '等級' : '定數'}</small></div>
-  </button>`;
+    ${ytBtn(s.title, diffName(sh))}
+  </div>`;
 }
 function bindRows(el) {
-  el.querySelectorAll('[data-s]').forEach(
-    b =>
-      (b.onclick = () => {
-        const s = mai.songs.songs[+b.dataset.s];
-        if (b.dataset.i == null) return openSong(s);
-        const sh = s.sheets[+b.dataset.i];
-        sh.t === 2 ? openSong(s) : openChart(sheetChart(sh));
-      }),
+  el.querySelectorAll('[data-s]').forEach(b =>
+    onRow(b, () => {
+      const s = mai.songs.songs[+b.dataset.s];
+      if (b.dataset.i == null) return openSong(s);
+      const sh = s.sheets[+b.dataset.i];
+      sh.t === 2 ? openSong(s) : openChart(sheetChart(sh));
+    }),
   );
 }
 // 「13+?」「13+」都算 13+；宴的「*」沒有等級

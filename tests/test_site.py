@@ -693,6 +693,16 @@ export const serverTimestamp = () => Date.now();
     check("點 B50 的譜面：各評級 Rating＋自己的成績", dlg.is_visible() and "SSS+" in dlg.inner_text()
           and "你的成績" in dlg.inner_text())
     dlg.locator(".dlg-x").click()
+    row = page.locator("#b50 .b50-row").first
+    yt = row.locator(".yt-btn").get_attribute("href") or ""
+    title = row.locator(".b50-title").inner_text()
+    # 不真的打開 YouTube：擋掉預設動作，只確認點按鈕不會跳出譜面視窗
+    page.evaluate("()=>{const a=document.querySelector('#b50 .b50-row .yt-btn');"
+                  "a.addEventListener('click',e=>e.preventDefault(),{once:true});a.click()}")
+    check("每首都有 YouTube 手元按鈕（點了開新分頁、不會開譜面視窗）",
+          yt.startswith("https://www.youtube.com/results?search_query=") and title in unquote(yt)
+          and "手元" in unquote(yt) and row.locator(".yt-btn").get_attribute("target") == "_blank"
+          and not page.locator("#chart[open]").count(), unquote(yt)[-50:])
 
     # ---------- 📚 曲庫（參考 arcade-songs） ----------
     def lvv(l):
