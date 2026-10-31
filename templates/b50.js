@@ -72,22 +72,24 @@ function suggestions(r, limit = 10) {
 
 function b50RowHTML(r, i) {
   const rank = rankOf(r.ach)[2];
-  return `<button class="b50-row mai-chart" data-k="${esc(r.title + '|' + r.kind)}" data-d="${r.diff}">
+  return `<div class="b50-row mai-chart" role="button" tabindex="0" data-k="${esc(r.title + '|' + r.kind)}" data-d="${r.diff}">
     <span class="b50-no">${i + 1}</span>${coverImg(r.img)}
     <div class="b50-info"><div class="b50-title">${esc(r.title)}</div>
       <div class="b50-meta">${diffTag(r.diff)}
       ${r.kind === 'dx' ? 'DX' : 'STD'} · 定數 ${constText(r.c, r.est)}${r.fc ? ` · <b>${FC_LABEL[r.fc] || ''}</b>` : ''}</div></div>
     <div class="b50-score"><b>${r.ach.toFixed(4)}%</b><small>${rank} · <b>${r.ra}</b></small></div>
-  </button>`;
+    ${ytBtn(r.title, DIFF_NAMES[r.diff])}
+  </div>`;
 }
 function upRowHTML(p, i) {
   const r = p.row;
-  return `<button class="b50-row mai-chart" data-k="${esc(r.title + '|' + r.kind)}" data-d="${r.diff}">
+  return `<div class="b50-row mai-chart" role="button" tabindex="0" data-k="${esc(r.title + '|' + r.kind)}" data-d="${r.diff}">
     <span class="b50-no">${i + 1}</span>${coverImg(r.img)}
     <div class="b50-info"><div class="b50-title">${esc(r.title)}</div>
       <div class="b50-meta">${diffTag(r.diff)} ${r.kind === 'dx' ? 'DX' : 'STD'} · 定數 ${constText(r.c, r.est)} · ${p.in ? 'B50 內' : '推上去可進 B50'}</div></div>
     <div class="b50-score"><b>${r.ach.toFixed(4)}% → ${p.name}</b><small>差 ${p.gap.toFixed(4)}% · <b>+${p.gain}</b></small></div>
-  </button>`;
+    ${ytBtn(r.title, DIFF_NAMES[r.diff])}
+  </div>`;
 }
 
 function histSVG(h) {
