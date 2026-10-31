@@ -149,10 +149,12 @@ function coverErr(el) {
 }
 const constText = (c, est) => (est ? '≈' : '') + c.toFixed(1);
 const regionIdx = () => (mai.f && mai.f.region === 'jp' ? 0 : 1);
-// YouTube 手元影片（搜尋「歌名 難度 maimai 手元」）
+// YouTube 手元影片（搜尋「maimai 歌名 難度 手元」）；「-」會被 YouTube 當成排除字，要跳脫（同 arcade-songs）
 const ytURL = (title, diff) =>
   'https://www.youtube.com/results?search_query=' +
-  encodeURIComponent(`${title} ${diff} maimai 手元`);
+  encodeURIComponent(
+    `maimai ${title} ${diff} 手元`.replaceAll('-', '\\-').replace(/(!)\1{3,}/g, '!!!'),
+  );
 const ytBtn = (title, diff) =>
   `<a class="yt-btn" href="${ytURL(title, diff)}" target="_blank" rel="noopener" title="YouTube 手元影片" aria-label="YouTube 手元影片">▶</a>`;
 // 譜面列是可以點的 div（裡面有 YouTube 連結，不能用 button）：點到連結時不開譜面視窗
