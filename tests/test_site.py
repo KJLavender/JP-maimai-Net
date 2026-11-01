@@ -636,14 +636,25 @@ export const getDocs = async q => {
     D.wait_for_timeout(300)
     check("代抓：工作還在排隊時不能再送", "太快" in D.locator("#toast").inner_text())
     cloud["jobs/g1"] = {**j, "status": "sent", "msg": "已送出好友申請，請到 maimai DX NET 接受「音GO」",
-                         "at": j["at"] - 120000}
-    D.wait_for_selector("#mf-b50:not([disabled])", timeout=8000)
+                         "at": D.evaluate("()=>Date.now()") - 52000}   # 冷卻還剩約 8 秒
+    D.wait_for_selector("#mf-b50[disabled]", timeout=8000)
+    D.wait_for_selector("#mf-b50:not([disabled])", timeout=15000)
+    check("代抓：冷卻時間到了按鈕自己變可以按（不用切換畫面）", D.locator("#mf-b50").is_enabled())
     check("代抓：申請送出後顯示「我接受了」按鈕與說明", "我接受了" in D.locator("#mf-b50").inner_text()
           and "接受「音GO」" in D.locator("#mai-friend").inner_text())
     D.locator("#mf-b50").click()
     D.wait_for_selector("#mai-friend .busy")
     j = cloud.get("jobs/g1") or {}
     check("代抓：按下後送出抓成績的工作", j.get("type") == "b50" and j.get("status") == "queued", str(j))
+    cloud["jobs/g1"] = {**j, "at": j["at"] - 180000}   # 排隊 3 分鐘都沒人接手
+    D.wait_for_function("()=>document.querySelector('#mai-friend').textContent.includes('沒有回應')", timeout=8000)
+    check("代抓：機器人太久沒接手會提示可能離線", D.locator("#mai-friend .mf-msg.err").is_visible()
+          and not D.locator("#mai-friend .busy").count())
+    cloud["jobs/g1"] = j
+    # 模擬中途斷網：接下來兩次讀取失敗，網頁要繼續等，不能就此卡住
+    D.evaluate("""()=>{const f=window.fetch;let n=2;
+      window.fetch=(u,o)=>String(u).includes('fake-firestore')&&n-->0?Promise.reject(new TypeError('offline')):f(u,o)}""")
+    D.wait_for_timeout(7000)
     now = D.evaluate("()=>Date.now()")
     cloud["users/g1/mai/b50"] = {"at": now, "data": json.dumps({
         "v": 1, "at": now, "name": "好友代抓", "rating": 13000, "scores": [], "new": [], "src": "friend",
@@ -744,6 +755,12 @@ export const getDocs = async q => {
     check("B50：重新整理後成績還在", page.locator("#b50 .b50-total b").inner_text() == str(want))
     check("B50：匯入時記一筆 Rating 紀錄",
           page.evaluate("()=>JSON.parse(localStorage.getItem('maimai:mai')).hist.map(x=>x[1])") == [12345])
+    page.locator("#b50-img").click()
+    page.wait_for_selector("#b50img-pic", timeout=15000)
+    pic = page.evaluate("()=>{const i=document.querySelector('#b50img-pic');return [i.src.slice(0,22),i.naturalWidth]}")
+    check("B50：匯出圖片（PNG、有下載按鈕）", pic == ["data:image/png;base64,", 2400]
+          and page.locator("#b50img-dl").get_attribute("download").endswith(".png"), str(pic))
+    page.locator("#b50img .dlg-x").click()
 
     # ---------- 🎵 maimai 工具（按鈕） ----------
     page.locator(".mai-modes .chip", has_text="推分建議").click()
@@ -757,6 +774,17 @@ export const getDocs = async q => {
     check("點 B50 的譜面：各評級 Rating＋自己的成績", dlg.is_visible() and "SSS+" in dlg.inner_text()
           and "你的成績" in dlg.inner_text())
     dlg.locator(".dlg-x").click()
+    row = page.locator("#b50 .b50-row").first
+    yt = row.locator(".yt-btn").get_attribute("href") or ""
+    title = row.locator(".b50-title").inner_text()
+    # 不真的打開 YouTube：在 document 才擋，先記下列的 onclick 有沒有把連結擋掉
+    blocked = page.evaluate("()=>{let p=null;document.addEventListener('click',e=>{p=e.defaultPrevented;"
+                            "e.preventDefault()},{once:true});"
+                            "document.querySelector('#b50 .b50-row .yt-btn').click();return p}")
+    check("每首都有 YouTube 手元按鈕（點了開新分頁、不會開譜面視窗）", blocked is False and
+          yt.startswith("https://www.youtube.com/results?search_query=") and title.replace("-", "\\-") in unquote(yt)
+          and "手元" in unquote(yt) and row.locator(".yt-btn").get_attribute("target") == "_blank"
+          and not page.locator("#chart[open]").count(), unquote(yt)[-50:])
 
     # ---------- 📚 曲庫（參考 arcade-songs） ----------
     def lvv(l):
