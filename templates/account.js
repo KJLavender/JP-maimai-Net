@@ -68,7 +68,7 @@ function onUser(u) {
   if (u) {
     rememberUser(u);
     if (!was || was.uid !== u.uid) {
-      syncNow();
+      checkBoardOn().then(syncNow);
       loadMaiCloud();
       mai.job = undefined;
       if (state.view === 'b50') render();
@@ -162,6 +162,7 @@ async function syncNow(interactive) {
     LS.set('syncAt', Date.now());
     if (interactive) toast(`已同步：去過 ${state.visited.size} 間、收藏 ${state.favs.size} 間`);
     acct.busy = false;
+    publishBoard();
     // 只有別台裝置帶來新紀錄才重畫，不然地圖上開著的彈出視窗會被關掉
     if (before !== recordsKey()) render();
     else refreshSyncUI();
@@ -243,7 +244,7 @@ async function logout() {
 async function deleteAccount() {
   if (
     !confirm(
-      '確定要刪除帳號嗎？雲端上的去過／收藏紀錄會一起刪除，無法復原。\n（這台裝置上的紀錄會保留）',
+      '確定要刪除帳號嗎？雲端上的去過／收藏紀錄、排行榜上的進度會一起刪除，無法復原。\n（這台裝置上的紀錄會保留）',
     )
   )
     return;
@@ -253,6 +254,8 @@ async function deleteAccount() {
     clearTimeout(acct.timer);
     await fs.deleteDoc(fs.doc(db, 'users', acct.user.uid, 'mai', 'b50'));
     await fs.deleteDoc(fs.doc(db, 'jobs', acct.user.uid)).catch(() => {}); // 剛送出的工作要等冷卻時間才能刪
+    await fs.deleteDoc(fs.doc(db, 'board', acct.user.uid));
+    LS.set('boardOn', '');
     await fs.deleteDoc(fs.doc(db, 'users', acct.user.uid));
     await auth.deleteUser(A.currentUser);
     LS.set('syncDirty', false);
@@ -452,6 +455,7 @@ function refreshSyncUI(msg) {
   } else {
     box.outerHTML = syncPanelHTML();
     bindSyncPanel(document.getElementById('conquest'));
+    paintBoard();
   }
 }
 
