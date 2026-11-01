@@ -20,12 +20,14 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 - 🔎 **Search** by name, address, prefecture or Chinese name; Japanese shinjitai and Traditional Chinese characters match each other (「沖繩」 finds 「沖縄」)
 - 🌙 **Open late** filter, ⭐ **favorites** (saved in the browser)
 - 🧭 **Arcade crawl route**: pick up to 9 stops and open them as one multi-stop Google Maps route
+- 🗓️ **Trip planner**: pick a date, start time and last-train time; it orders your selected route (or the current filter results) by that day's opening hours (waiting for doors to open, skipping closed days), estimates travel time, and tells you when you must leave for the last train
 - 🎰 **Taiwan machine details**: machine count, version/cabinet, coin type, queueing style and player notes (from Music Game Map)
 - 🔗 **Shareable links**: filters are stored in the URL, so a friend opening the link sees the same results (only "search this place" locations are shared, never your GPS position)
-- 🏆 **Arcade conquest**: tap "🏁 Mark visited" on any arcade; a tile map of the 47 prefectures fills in by how much you've covered and can be exported as an image to share. Records live in your own browser; optionally **sign in** (Google or email + password, top right) to sync them between phone and computer automatically, or move them with a backup / restore code
+- 🏆 **Arcade conquest**: tap "🏁 Mark visited" on any arcade; a tile map of the 47 prefectures fills in by how much you've covered and can be exported as an image to share. Records live in your own browser; optionally **sign in** (Google or email + password, top right) to sync them between phone and computer automatically, or move them with a backup / restore code. 🏅 **Leaderboard**: opt in (off by default) to publish only your name and counts, see the site-wide ranking, and add friends with a friend link
 - 📊 **Stats**: how many arcades carry each rhythm game over time (one more point every weekly update) and a ranking by prefecture, switchable by game, with a table view
-- 🎵 **maimai DX B50**: when signed in, enter your friend code and accept the bot's friend request, then one button fetches your scores; or run a bookmarklet on maimai DX NET (International) while logged in; it reads *your own* scores and brings them back to compute Best 35 + New 15 with chart constants. Your SEGA password never passes through this site; scores stay in the browser and sync to your account when signed in. Also shows 📈 score-push suggestions (charts close to the next rank that would raise your rating) and 📉 rating history
+- 🎵 **maimai DX B50**: when signed in, enter your friend code and accept the bot's friend request, then one button fetches your scores; or run a bookmarklet on maimai DX NET (International) while logged in; it reads *your own* scores and brings them back to compute Best 35 + New 15 with chart constants. Your SEGA password never passes through this site; scores stay in the browser and sync to your account when signed in. Also shows 📈 score-push suggestions (charts close to the next rank that would raise your rating), 🎯 a target-rating plan ("push these 5 charts to reach 15000", easiest first, recomputing B15/B35 after every step), 🆚 a side-by-side comparison with a friend via a share link (no server; the link carries your top 300 scores), and 📉 rating history
 - 📚 **maimai song library** (modeled on [arcade-songs](https://arcade-songs.zetaraku.dev/maimai/), all buttons): search by title, artist, chart designer or romaji; filter by International / Japanese version, difficulty, type (DX / STD / 宴), level and constant range, category, version, designer, BPM, new songs and ⭐ my list; sort by constant, level, release date, BPM, note count or title; chart list, cover grid and summary views; 🎲 draw 1–10 random charts from the results. Tap a song for all its charts (designer, note counts, regions); tap a chart for the rating at each rank (SSS+…AAA)
+- ✈️ **Japan-only songs**: songs and charts in the Japanese version but not International, filter by level, add them all to ⭐ my list before a trip
 - 🎖️ **Dan courses**: 段位認定 and オトモダチ対戦 (friend battle) course songs for every version, International or Japanese version, with life / damage / recovery, the opponent's rank and your own score from B50
 - 🗺️ **List / map views**: clustered markers, green = open now
 - 📱 **PWA**: add to home screen; the list works offline
@@ -55,9 +57,11 @@ Find arcades in Japan and Taiwan that have maimai DX, CHUNITHM, ONGEKI, Project 
 │   ├── index.html        Page skeleton (__DATA__ etc. are filled in by build_site.py)
 │   ├── style.css / app.js
 │   ├── conquest.js / stats.js   🏆 Conquest, 📊 Stats
+│   ├── board.js / plan.js       🏅 Conquest leaderboard, 🗓️ Trip planner
 │   ├── account.js / privacy.html   👤 Sign-in & sync (Firebase), privacy notice
 │   ├── mai.js                      🎵 maimai page: sub-tabs, song library (filters, views, draw, my list), per-rank rating
-│   ├── b50.js / bookmarklet.js     🎵 B50 page, and the bookmarklet that runs on maimai DX NET
+│   ├── b50.js / bookmarklet.js     🎵 B50 page (incl. 🎯 target rating), and the bookmarklet that runs on maimai DX NET
+│   ├── vs.js                       🆚 Compare B50 with a friend (share links)
 │   └── sw.js / manifest.webmanifest / icon.svg   PWA
 ├── site/                 Generated website (not committed; built by Netlify on deploy)
 ├── tests/test_site.py    E2E tests (Playwright)
@@ -102,7 +106,7 @@ Checks the formatting of `templates/` (Prettier), builds the site with `scripts/
 4. *Project settings* → *Your apps* → add a **Web** app → copy `apiKey`, `authDomain`, `projectId`, `appId` into `FIREBASE_CONFIG` in `templates/account.js`
 5. Google Cloud console → *Google Auth Platform* → *Audience* → **Publish app** (in *Testing* only listed test users can use Google sign-in)
 
-The Firebase web config is public (it ships in the page) and is not a secret; access is enforced by `firestore.rules`, where each user can only read and write `users/{their uid}`. The Firebase SDK is loaded only when someone opens the sign-in dialog or was signed in before.
+The Firebase web config is public (it ships in the page) and is not a secret; access is enforced by `firestore.rules`, where each user can only read and write `users/{their uid}`; `board/{uid}` (the opt-in leaderboard) is public to read but only its owner can write it, and only a name plus counts. The Firebase SDK is loaded only when someone opens the sign-in dialog or was signed in before.
 
 **Friend-code B50 fetching**: signed-in users enter their friend code on the 🎵 maimai page and press buttons (🤝 send friend request → ✅ I accepted → 🔄 update B50). Each press writes a job to `jobs/{uid}` (rules allow only queued jobs, at most one per 10 minutes for score fetching / 1 minute for friend requests); the `otogo_worker.py` in [maimai-dc-bot](https://github.com/KJLavender/maimai-dc-bot) runs on the bot's VM, does the job with the bot's maimai DX NET account and writes the scores back to `users/{uid}/mai/b50`. See that repo's README for setup.
 

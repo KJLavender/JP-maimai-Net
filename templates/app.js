@@ -374,6 +374,7 @@ function renderStatusRow() {
         render();
       }),
   );
+  row.appendChild(chip('share', '🗓️ 排行程', false, () => openPlan()));
   row.appendChild(chip('share', '🔗 分享', false, () => shareView()));
 }
 function renderAllRows() {
