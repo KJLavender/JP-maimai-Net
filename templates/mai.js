@@ -321,7 +321,6 @@ const DEFAULT_F = {
   des: '',
   bpmMin: '',
   bpmMax: '',
-  newOnly: false,
   mine: false,
   all: false,
   sort: 'c',
@@ -357,8 +356,7 @@ function filterSheets(S, f) {
     diffs = new Set(f.diffs),
     types = new Set(f.types.map(Number)),
     cats = new Set(f.cats.map(Number)),
-    mine = f.mine ? myList() : null,
-    newVers = new Set(S.new.map(n => S.vers.findIndex(v => v[0] === n)));
+    mine = f.mine ? myList() : null;
   const out = [];
   for (const s of S.songs) {
     if (q && !s._s.includes(q) && !(r.length >= 3 && s.ro.includes(r))) continue;
@@ -381,7 +379,6 @@ function filterSheets(S, f) {
       if (c10(v.c) < cMin || c10(v.c) > cMax) continue;
       if (v.ver < vMin || v.ver > vMax) continue;
       if (f.des !== '' && sh.des !== +f.des) continue;
-      if (f.newOnly && !newVers.has(v.ver)) continue;
       out.push({ s, sh, v });
     }
   }
@@ -445,7 +442,6 @@ function filterHTML(S, f) {
     <div class="mai-frow"><label>譜師</label><div class="mai-range"><select data-f="des">${opt('', '不限', f.des)}${desSorted.map(([i, n]) => opt(i, n, f.des)).join('')}</select></div></div>
     <div class="mai-frow"><label>BPM</label><div class="mai-range"><input data-f="bpmMin" type="number" inputmode="numeric" placeholder="例：180" value="${esc(f.bpmMin)}"> ～ <input data-f="bpmMax" type="number" inputmode="numeric" placeholder="可不填" value="${esc(f.bpmMax)}"></div></div>
     <div class="mai-frow"><label>其他</label><div class="chips">
-      ${maiChip('data-b', 'newOnly', 1, f.newOnly, '🆕 新曲（B15）', ' tgl')}
       ${maiChip('data-b', 'mine', 1, f.mine, '⭐ 我的清單', ' fav')}
       ${maiChip('data-b', 'all', 1, f.all, '含已刪除／未收錄', ' tgl')}
       <span class="chip clear" id="mai-reset">✕ 重設篩選</span></div></div>
