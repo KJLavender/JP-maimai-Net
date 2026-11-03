@@ -805,6 +805,17 @@ export const getDocs = async q => {
     page.locator(".mai-tabs button", has_text="曲庫").click()
     page.wait_for_selector("#mai-res .mai-lrow")
     check("曲庫：預設列出國際版全部譜面", shown_count() == count_where(), f"{shown_count()} vs {count_where()}")
+    page.locator("#mai-res .mai-lrow .jp-fav").first.click()
+    check("定數表：每列有星號，按了加入我的清單、不會開譜面視窗",
+          page.locator("#mai-res .mai-lrow .jp-fav").first.get_attribute("data-on") == "1"
+          and not page.locator("#chart[open]").count()
+          and len(page.evaluate("()=>JSON.parse(localStorage.getItem('maimai:maiList')||'[]')")) == 1)
+    page.locator("#mai-res .mai-lrow .b50-title").first.click()
+    check("譜面視窗：顯示已在我的清單", "已在" in page.locator("#chart[open] #chart-fav").inner_text())
+    page.locator("#chart #chart-fav").click()
+    check("譜面視窗：可以移除，外面的星號也跟著變", "加入" in page.locator("#chart[open] #chart-fav").inner_text()
+          and page.locator("#mai-res .mai-lrow .jp-fav").first.get_attribute("data-on") == "0")
+    page.locator("#chart .dlg-x").click()
     check("maimai 頁：不顯示找店的搜尋與篩選", not page.locator("#q").is_visible()
           and not page.locator("#gamerow").is_visible())
     page.wait_for_function("()=>{const i=document.querySelector('#mai-res .b50-cover');return i&&i.complete}")
@@ -889,7 +900,8 @@ export const getDocs = async q => {
     page.locator("#chart .dlg-x").click()
     check("我的清單：歌曲卡片星號亮著、記下修改時間（登入後和帳號合併用）",
           page.locator(".mai-song .jp-fav[data-on='1']").count() == 1
-          and page.evaluate("()=>Object.keys(JSON.parse(localStorage.getItem('maimai:maiListT')||'{}')).length") == 1)
+          and page.evaluate("()=>{const t=JSON.parse(localStorage.getItem('maimai:maiListT')||'{}');"
+                            "return JSON.parse(localStorage.getItem('maimai:maiList')).every(k=>t[k])}"))
     page.locator(".mai-song .jp-fav").first.click()
     check("我的清單：在歌曲卡片按星號移除", page.locator(".mai-song").count() == 0
           and page.evaluate("()=>JSON.parse(localStorage.getItem('maimai:maiList')||'[]').length") == 0)

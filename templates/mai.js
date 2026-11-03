@@ -161,7 +161,7 @@ const ytBtn = (title, diff) =>
 // 用大括號：onclick/onkeydown 回傳 false 會等於 preventDefault，連結就點不開
 function onRow(b, fn) {
   b.onclick = e => {
-    if (!e.target.closest('a')) fn();
+    if (!e.target.closest('a, .jp-fav')) fn();
   };
   if (b.tagName !== 'BUTTON')
     b.onkeydown = e => {
@@ -174,6 +174,7 @@ function bindCharts(el) {
       const s = mai.songs.idx.get(b.dataset.k),
         diff = +b.dataset.d;
       openChart({
+        s: mai.songs.songs.find(x => x.title === s[0]),
         title: s[0],
         kind: s[1],
         ver: s[2],
@@ -209,7 +210,8 @@ function openChart(t) {
     })
     .join('');
   const sh = t.sh,
-    designer = sh && mai.songs.des[sh.des];
+    designer = sh && mai.songs.des[sh.des],
+    fav = t.s && myList().has(t.s.key);
   const d = ensureDialog(
     'chart',
     `<div class="mai-chart-head">${coverImg(t.img, 'mai-cover-lg')}<div>
@@ -225,13 +227,23 @@ function openChart(t) {
     }
     <table class="mai-rt"><tr><th>評級</th><th>達成率</th><th>Rating</th></tr>${rows}</table>
     <p class="cq-hint">ALL PERFECT 以上再 +1。</p>
-    <div class="cq-actions"><a class="btn yt-wide" href="${ytURL(t.title, DIFF_NAMES[diff])}" target="_blank" rel="noopener">▶ YouTube 手元影片</a></div>`,
+    <div class="cq-actions">${t.s ? `<button class="btn${fav ? '' : ' ghost'}" id="chart-fav">${fav ? '★ 已在我的清單' : '☆ 加入我的清單'}</button>` : ''}<a class="btn yt-wide" href="${ytURL(t.title, DIFF_NAMES[diff])}" target="_blank" rel="noopener">▶ YouTube 手元影片</a></div>`,
   );
-  d.showModal();
+  const fb = d.querySelector('#chart-fav');
+  if (fb)
+    fb.onclick = () => {
+      toggleMine(t.s.key, !fav);
+      openChart(t);
+      // 從歌曲視窗點進來的：底下那個視窗的按鈕也要跟著更新
+      const sd = document.getElementById('song');
+      if (sd && sd.open && sd.dataset.key === t.s.key) openSong(t.s);
+    };
+  if (!d.open) d.showModal();
 }
 function sheetChart(sh, ri = regionIdx()) {
   const v = sh.v[ri];
   return {
+    s: sh.s,
     title: sh.s.title,
     kind: ['dx', 'std'][sh.t],
     ver: mai.songs.vers[v.ver][0],
@@ -257,6 +269,22 @@ function setMine(keys, on) {
   LS.set('maiList', [...l]);
   LS.set('maiListT', t);
   queueListSync();
+}
+const favBtn = (s, on) =>
+  `<button class="iconbtn jp-fav" data-key="${esc(s.key)}" data-on="${on ? 1 : 0}" aria-label="${on ? '從我的清單移除' : '加入我的清單'}">${on ? '★' : '☆'}</button>`;
+// 加入／移除後，畫面上同一首歌的星號都要跟著變
+function toggleMine(key, on) {
+  setMine([key], on);
+  document.querySelectorAll('.jp-fav[data-key]').forEach(b => {
+    if (b.dataset.key === key) b.outerHTML = favBtn({ key }, on);
+  });
+  if (mai.f && mai.f.mine) refreshLib();
+  bindFavs(document);
+}
+function bindFavs(el) {
+  el.querySelectorAll('.jp-fav[data-key]').forEach(
+    b => (b.onclick = () => toggleMine(b.dataset.key, b.dataset.on !== '1')),
+  );
 }
 function openSong(s) {
   const S = mai.songs,
@@ -294,10 +322,10 @@ function openSong(s) {
     <p class="cq-hint">${ri ? '國際版' : '日版'}的等級／定數。點譜面看各評級 Rating。</p>`,
   );
   d.classList.add('dlg-wide');
+  d.dataset.key = s.key;
   d.querySelector('#song-fav').onclick = () => {
-    setMine([s.key], !fav);
+    toggleMine(s.key, !fav);
     openSong(s);
-    refreshLib();
   };
   d.querySelectorAll('tr.mai-tap').forEach(tr =>
     onRow(tr, () => openChart(sheetChart(s.sheets[+tr.dataset.i], ri))),
@@ -554,10 +582,11 @@ function sheetRowHTML(x, i, extra) {
       <div class="b50-meta"><span class="b50-diff" style="background:${diffColor(sh)}">${esc(diffName(sh))}</span>
       ${TYPE_NAMES[sh.t]} · Lv ${esc(v.lv)} · ${esc(mai.songs.vers[v.ver] ? mai.songs.vers[v.ver][1] : '')}${designer ? ' · ' + esc(designer) : ''}</div>${extra ? `<div class="mai-extra">${extra}</div>` : ''}</div>
     <div class="b50-score"><b>${sh.t === 2 ? esc(v.lv) : constText(v.c, v.est)}</b><small>${sh.t === 2 ? '等級' : '定數'}</small></div>
-    ${ytBtn(s.title, diffName(sh))}
+    ${favBtn(s, myList().has(s.key))}${ytBtn(s.title, diffName(sh))}
   </div>`;
 }
 function bindRows(el) {
+  bindFavs(el);
   el.querySelectorAll('[data-s]').forEach(b =>
     onRow(b, () => {
       const s = mai.songs.songs[+b.dataset.s];
@@ -591,12 +620,11 @@ function songCardHTML(s, hit, ri, mine) {
         .join('')}</div>`;
     })
     .join('');
-  const ver = S.vers[s.ver],
-    on = mine.has(s.key);
+  const ver = S.vers[s.ver];
   return `<div class="mai-song"><button class="mai-song-c" data-s="${s.i}">${coverImg(s.img)}</button>
     <div class="b50-info"><button class="mai-song-t" data-s="${s.i}">${esc(s.title)}</button>
       <div class="b50-meta">${esc(s.artist)}${ver ? ' · ' + esc(ver[1]) : ''}${s.bpm ? ' · BPM ' + s.bpm : ''}</div>${rows}</div>
-    <button class="iconbtn jp-fav" data-key="${esc(s.key)}" data-on="${on ? 1 : 0}" aria-label="${on ? '從我的清單移除' : '加入我的清單'}">${on ? '★' : '☆'}</button></div>`;
+    ${favBtn(s, mine.has(s.key))}</div>`;
 }
 /* 📋 定數表：依等級分段、段內定數高到低（mai-bot /c） */
 function levelTableHTML(list, f) {
@@ -688,13 +716,6 @@ function refreshLib() {
       show.map(s => songCardHTML(s, hit, ri, mine)).join('') +
       more(songs.length - show.length);
   } else res.innerHTML = head + levelTableHTML(list, f) + more(list.length - mai.shown);
-  res.querySelectorAll('.jp-fav').forEach(
-    b =>
-      (b.onclick = () => {
-        setMine([b.dataset.key], b.dataset.on !== '1');
-        refreshLib();
-      }),
-  );
   const m = document.getElementById('mai-more');
   if (m)
     m.onclick = () => {
