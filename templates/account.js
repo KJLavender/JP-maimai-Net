@@ -70,6 +70,7 @@ function onUser(u) {
     if (!was || was.uid !== u.uid) {
       checkBoardOn().then(syncNow);
       loadMaiCloud();
+      syncMaiList();
       mai.job = undefined;
       if (state.view === 'b50') render();
     }
@@ -107,17 +108,18 @@ function localDoc() {
   });
   return doc;
 }
-function mergeDocs(a, b) {
-  const out = { visited: {}, favs: {} };
-  for (const k of ['visited', 'favs']) {
-    const A = (a && a[k]) || {},
-      B = (b && b[k]) || {};
-    for (const id of new Set([...Object.keys(A), ...Object.keys(B)])) {
-      const x = A[id],
-        y = B[id];
-      out[k][id] = !x ? y : !y ? x : y[1] > x[1] ? y : x;
-    }
+function mergeMap(A = {}, B = {}) {
+  const out = {};
+  for (const id of new Set([...Object.keys(A), ...Object.keys(B)])) {
+    const x = A[id],
+      y = B[id];
+    out[id] = !x ? y : !y ? x : y[1] > x[1] ? y : x;
   }
+  return out;
+}
+function mergeDocs(a, b) {
+  const out = {};
+  for (const k of ['visited', 'favs']) out[k] = mergeMap(a && a[k], b && b[k]);
   return out;
 }
 function applyDoc(doc) {
@@ -217,9 +219,17 @@ async function resetPassword(email) {
 function clearLocalRecords() {
   state.visited = new Set();
   state.favs = new Set();
-  ['visited', 'favs', 'syncTimes', 'syncDirty', 'syncAt', 'mai'].forEach(k =>
-    localStorage.removeItem('maimai:' + k),
-  );
+  [
+    'visited',
+    'favs',
+    'syncTimes',
+    'syncDirty',
+    'syncAt',
+    'mai',
+    'maiList',
+    'maiListT',
+    'maiListDirty',
+  ].forEach(k => localStorage.removeItem('maimai:' + k));
 }
 async function logout() {
   let fb;
@@ -229,8 +239,9 @@ async function logout() {
     return toast(e.message);
   }
   if (LS.get('syncDirty', false)) await syncNow();
+  if (LS.get('maiListDirty', false)) await syncMaiList();
   if (
-    LS.get('syncDirty', false) &&
+    (LS.get('syncDirty', false) || LS.get('maiListDirty', false)) &&
     !confirm('還有紀錄沒同步到雲端，登出後這台裝置上的這些紀錄會不見。確定要登出嗎？')
   )
     return;
@@ -253,6 +264,7 @@ async function deleteAccount() {
     const { auth, fs, A, db } = acct.fb;
     clearTimeout(acct.timer);
     await fs.deleteDoc(fs.doc(db, 'users', acct.user.uid, 'mai', 'b50'));
+    await fs.deleteDoc(fs.doc(db, 'users', acct.user.uid, 'mai', 'list'));
     await fs.deleteDoc(fs.doc(db, 'jobs', acct.user.uid)).catch(() => {}); // 剛送出的工作要等冷卻時間才能刪
     await fs.deleteDoc(fs.doc(db, 'board', acct.user.uid));
     LS.set('boardOn', '');
@@ -286,6 +298,48 @@ async function loadMaiCloud() {
       if (state.view === 'b50') render();
     } else if (local && (!remote || local.at > remote.at)) saveMaiCloud(local);
   } catch (_) {}
+}
+
+/* ---- ⭐ 我的清單（maimai 歌曲）：users/{uid}/mai/list，每首 [1或0, 時間]，跟去過／收藏一樣在交易裡合併 ---- */
+const listRef = () => acct.fb.fs.doc(acct.fb.db, 'users', acct.user.uid, 'mai', 'list');
+function localList() {
+  const t = LS.get('maiListT', {}),
+    l = new Set(LS.get('maiList', [])),
+    out = {};
+  for (const k of l) out[k] = [1, t[k] || 0];
+  for (const k in t) if (!l.has(k)) out[k] = [0, t[k]];
+  return out;
+}
+function queueListSync() {
+  if (!acct.user && !LS.get('user', null)) return;
+  LS.set('maiListDirty', true);
+  clearTimeout(acct.listTimer);
+  acct.listTimer = setTimeout(syncMaiList, 1500);
+}
+async function syncMaiList() {
+  if (!acct.user) return;
+  const before = LS.get('maiList', []).sort().join('\n');
+  try {
+    const { fs, db } = acct.fb,
+      ref = listRef();
+    const merged = await fs.runTransaction(db, async tx => {
+      const snap = await tx.get(ref),
+        m = mergeMap(localList(), snap.exists() ? JSON.parse(snap.data().data) : {});
+      tx.set(ref, { at: Date.now(), data: JSON.stringify(m) });
+      return m;
+    });
+    // 交易進行中又加減的歌也要留著
+    const all = mergeMap(merged, localList()),
+      t = {},
+      on = Object.keys(all).filter(k => all[k][0]);
+    for (const k in all) if (all[k][1]) t[k] = all[k][1];
+    LS.set('maiList', on);
+    LS.set('maiListT', t);
+    LS.set('maiListDirty', false);
+    if (on.sort().join('\n') !== before && state.view === 'b50') render();
+  } catch (e) {
+    toast('我的清單同步失敗：' + authMsg(e));
+  }
 }
 
 /* ---- 🤝 好友代碼代抓：在 jobs/{uid} 放一個工作，mai-bot 的 otogo_worker.py 做完會改 status、把成績寫進 users/{uid}/mai/b50 ---- */
