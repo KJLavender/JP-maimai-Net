@@ -245,6 +245,19 @@ function sheetChart(sh, ri = regionIdx()) {
 
 /* ---- 一首歌的詳細資料：所有譜面、版本、地區、我的清單 ---- */
 const myList = () => new Set(LS.get('maiList', []));
+// 每首記下改動時間，和帳號上的清單合併時才知道哪邊比較新（account.js 的 syncMaiList）
+function setMine(keys, on) {
+  const l = myList(),
+    t = LS.get('maiListT', {}),
+    now = Date.now();
+  for (const k of keys) {
+    on ? l.add(k) : l.delete(k);
+    t[k] = now;
+  }
+  LS.set('maiList', [...l]);
+  LS.set('maiListT', t);
+  queueListSync();
+}
 function openSong(s) {
   const S = mai.songs,
     ri = regionIdx(),
@@ -282,9 +295,7 @@ function openSong(s) {
   );
   d.classList.add('dlg-wide');
   d.querySelector('#song-fav').onclick = () => {
-    const l = myList();
-    l.has(s.key) ? l.delete(s.key) : l.add(s.key);
-    LS.set('maiList', [...l]);
+    setMine([s.key], !fav);
     openSong(s);
     refreshLib();
   };
@@ -565,7 +576,7 @@ const levelKey = lv => {
 };
 const DIFF_SHORT = ['BAS', 'ADV', 'EXP', 'MAS', 'Re:M'];
 /* 🎵 歌曲：一首一張卡，列出各難度定數；符合篩選的譜面亮起來 */
-function songCardHTML(s, hit, ri) {
+function songCardHTML(s, hit, ri, mine) {
   const S = mai.songs,
     bit = ri ? 2 : 1;
   const rows = [0, 1, 2]
@@ -580,10 +591,12 @@ function songCardHTML(s, hit, ri) {
         .join('')}</div>`;
     })
     .join('');
-  const ver = S.vers[s.ver];
+  const ver = S.vers[s.ver],
+    on = mine.has(s.key);
   return `<div class="mai-song"><button class="mai-song-c" data-s="${s.i}">${coverImg(s.img)}</button>
     <div class="b50-info"><button class="mai-song-t" data-s="${s.i}">${esc(s.title)}</button>
-      <div class="b50-meta">${esc(s.artist)}${ver ? ' · ' + esc(ver[1]) : ''}${s.bpm ? ' · BPM ' + s.bpm : ''}</div>${rows}</div></div>`;
+      <div class="b50-meta">${esc(s.artist)}${ver ? ' · ' + esc(ver[1]) : ''}${s.bpm ? ' · BPM ' + s.bpm : ''}</div>${rows}</div>
+    <button class="iconbtn jp-fav" data-key="${esc(s.key)}" data-on="${on ? 1 : 0}" aria-label="${on ? '從我的清單移除' : '加入我的清單'}">${on ? '★' : '☆'}</button></div>`;
 }
 /* 📋 定數表：依等級分段、段內定數高到低（mai-bot /c） */
 function levelTableHTML(list, f) {
@@ -668,10 +681,20 @@ function refreshLib() {
     const n = Math.ceil(mai.shown / 2),
       show = songs.slice(0, n),
       ri = regionIdx(),
-      hit = new Set(list.map(x => x.sh));
+      hit = new Set(list.map(x => x.sh)),
+      mine = myList();
     res.innerHTML =
-      head + show.map(s => songCardHTML(s, hit, ri)).join('') + more(songs.length - show.length);
+      head +
+      show.map(s => songCardHTML(s, hit, ri, mine)).join('') +
+      more(songs.length - show.length);
   } else res.innerHTML = head + levelTableHTML(list, f) + more(list.length - mai.shown);
+  res.querySelectorAll('.jp-fav').forEach(
+    b =>
+      (b.onclick = () => {
+        setMine([b.dataset.key], b.dataset.on !== '1');
+        refreshLib();
+      }),
+  );
   const m = document.getElementById('mai-more');
   if (m)
     m.onclick = () => {
@@ -917,7 +940,10 @@ function renderJpOnly(el, S) {
     save();
   };
   el.querySelector('#jp-addall').onclick = () => {
-    LS.set('maiList', [...new Set([...myList(), ...missing.map(x => x.s.key)])]);
+    setMine(
+      missing.map(x => x.s.key),
+      true,
+    );
     toast(`已把 ${missing.length} 首加入我的清單`);
     renderJpOnly(el, S);
   };
@@ -932,10 +958,7 @@ function renderJpOnly(el, S) {
   el.querySelectorAll('.jp-fav').forEach(
     b =>
       (b.onclick = () => {
-        const key = b.closest('.mai-song').dataset.key,
-          l = myList();
-        l.has(key) ? l.delete(key) : l.add(key);
-        LS.set('maiList', [...l]);
+        setMine([b.closest('.mai-song').dataset.key], b.dataset.on !== '1');
         renderJpOnly(el, S);
       }),
   );

@@ -883,6 +883,12 @@ export const getDocs = async q => {
     page.locator(".mai-song .mai-sheet:not(.dim)").first.click()
     check("歌曲檢視：點難度看各評級 Rating", page.locator("#chart[open] .mai-rt").is_visible())
     page.locator("#chart .dlg-x").click()
+    check("我的清單：歌曲卡片星號亮著、記下修改時間（登入後和帳號合併用）",
+          page.locator(".mai-song .jp-fav[data-on='1']").count() == 1
+          and page.evaluate("()=>Object.keys(JSON.parse(localStorage.getItem('maimai:maiListT')||'{}')).length") == 1)
+    page.locator(".mai-song .jp-fav").first.click()
+    check("我的清單：在歌曲卡片按星號移除", page.locator(".mai-song").count() == 0
+          and page.evaluate("()=>JSON.parse(localStorage.getItem('maimai:maiList')||'[]').length") == 0)
     page.locator("#mai-filter [data-b='mine']").click()
 
     page.locator(".mai-views button", has_text="定數表").click()
