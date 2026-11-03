@@ -322,7 +322,7 @@ const DEFAULT_F = {
   bpmMin: '',
   bpmMax: '',
   mine: false,
-  all: false,
+  deleted: false,
   sort: 'c',
   desc: true,
   view: 'sheet',
@@ -333,6 +333,8 @@ const FILTER_KEYS = Object.keys(DEFAULT_F).filter(
 );
 const activeFilters = f =>
   FILTER_KEYS.filter(k => (Array.isArray(f[k]) ? f[k].length : f[k] !== DEFAULT_F[k])).length;
+// 日版、國際版都沒有了（只剩中國版有的也算）
+const isDeleted = sh => !(sh.reg & 3);
 
 function filterSheets(S, f) {
   const ri = f.region === 'jp' ? 0 : 1,
@@ -369,7 +371,7 @@ function filterSheets(S, f) {
       continue;
     for (const sh of s.sheets) {
       const v = sh.v[ri];
-      if (!f.all && !(sh.reg & bit)) continue;
+      if (f.deleted ? !isDeleted(sh) : !(sh.reg & bit)) continue;
       if (types.size && !types.has(sh.t)) continue;
       if (diffs.size && !diffs.has(sh.t === 2 ? 'u' : String(sh.d))) continue;
       if (lvMin != null || lvMax != null) {
@@ -443,7 +445,7 @@ function filterHTML(S, f) {
     <div class="mai-frow"><label>BPM</label><div class="mai-range"><input data-f="bpmMin" type="number" inputmode="numeric" placeholder="例：180" value="${esc(f.bpmMin)}"> ～ <input data-f="bpmMax" type="number" inputmode="numeric" placeholder="可不填" value="${esc(f.bpmMax)}"></div></div>
     <div class="mai-frow"><label>其他</label><div class="chips">
       ${maiChip('data-b', 'mine', 1, f.mine, '⭐ 我的清單', ' fav')}
-      ${maiChip('data-b', 'all', 1, f.all, '含已刪除／未收錄', ' tgl')}
+      ${maiChip('data-b', 'deleted', 1, f.deleted, '🗑️ 只看已刪除的歌', ' tgl')}
       <span class="chip clear" id="mai-reset">✕ 重設篩選</span></div></div>
   </details>`;
 }
@@ -577,7 +579,9 @@ function songCardHTML(s, hit, ri, mine) {
     bit = ri ? 2 : 1;
   const rows = [0, 1, 2]
     .map(t => {
-      const shs = s.sheets.filter(sh => sh.t === t && (mai.f.all || sh.reg & bit));
+      const shs = s.sheets.filter(
+        sh => sh.t === t && (mai.f.deleted ? isDeleted(sh) : sh.reg & bit),
+      );
       if (!shs.length) return '';
       return `<div class="mai-sheets"><span class="mai-kind">${TYPE_NAMES[t]}</span>${shs
         .map(sh => {
@@ -663,7 +667,7 @@ function refreshLib() {
   document
     .querySelectorAll('.mai-views button')
     .forEach(b => (b.dataset.on = b.dataset.v === f.view ? 1 : 0));
-  const head = `<p class="count">符合 ${list.length} 個譜面（${songs.length} 首歌）· ${f.region === 'jp' ? '日版' : '國際版'}</p>`;
+  const head = `<p class="count">符合 ${list.length} 個譜面（${songs.length} 首歌）· ${f.deleted ? '已刪除（日版、國際版都沒有了）' : f.region === 'jp' ? '日版' : '國際版'}</p>`;
   if (!list.length) {
     res.innerHTML = head + '<div class="empty">沒有符合的譜面</div>';
     return;
