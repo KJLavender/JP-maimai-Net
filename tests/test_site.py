@@ -842,6 +842,10 @@ export const getDocs = async q => {
     want_c = sum(1 for s in songs["songs"] for sh in s[10] if sh[7] & 2 and round((view_of(sh)[1] or 0) * 10) == 137)
     check("曲庫：定數只填一個就只看那個定數", shown_count() == want_c, f"{shown_count()} vs {want_c}")
     page.fill('input[data-f="cMax"]', "")
+    page.locator("#mai-filter [data-b='deleted']").click()
+    want_d = sum(1 for s in songs["songs"] for sh in s[10] if not sh[7] & 3)
+    check("曲庫：只看已刪除的歌（日版、國際版都沒有了）", shown_count() == want_d > 0, f"{shown_count()} vs {want_d}")
+    page.locator("#mai-filter [data-b='deleted']").click()
     page.fill("#mai-q", "zzz")
     page.locator("#mai-reset").click()
     check("曲庫：重設篩選會一起清掉搜尋字", page.locator("#mai-q").input_value() == ""
