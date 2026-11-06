@@ -87,6 +87,8 @@ const state = {
   view: 'list',
 };
 LS.set('route', state.route);
+// 路線裡關掉開關的站：留在清單裡，導覽和排行程時跳過
+state.routeOff = new Set(LS.get('routeOff', []).filter(id => state.route.includes(id)));
 /* 網址 #q=…&g=…&open=1&late=1&pref=…&r=5&at=lat,lng,地名&view=map
    只分享「搜尋此地」的地點，不分享 GPS 定位（避免把自己的位置傳出去） */
 function readHash() {
@@ -418,6 +420,17 @@ window.toggleFav = function (idx, el) {
 
 /* ---- 機廳巡り路線 ---- */
 const inRoute = id => state.route.includes(id);
+const routeStops = () =>
+  state.route
+    .filter(id => !state.routeOff.has(id))
+    .map(id => byId[id])
+    .filter(d => d && 'y' in d);
+function saveRoute() {
+  for (const id of state.routeOff) if (!state.route.includes(id)) state.routeOff.delete(id);
+  LS.set('route', state.route);
+  LS.set('routeOff', [...state.routeOff]);
+  renderRouteBar();
+}
 function renderRouteBar() {
   const bar = document.getElementById('routebar');
   if (!bar) return;
@@ -428,7 +441,9 @@ function renderRouteBar() {
   }
   document.body.classList.add('has-route');
   bar.style.display = 'flex';
-  bar.querySelector('.rcount').textContent = `已選 ${state.route.length}/${MAX_ROUTE} 站`;
+  const off = state.routeOff.size;
+  bar.querySelector('.rcount').textContent =
+    `已選 ${state.route.length}/${MAX_ROUTE} 站` + (off ? `（${off} 站先不去）` : '');
 }
 window.toggleRoute = function (idx, el) {
   const d = DATA[idx];
@@ -444,23 +459,22 @@ window.toggleRoute = function (idx, el) {
     }
     state.route.push(id);
   }
-  LS.set('route', state.route);
+  saveRoute();
   if (el) {
     const on = inRoute(id);
     el.dataset.on = on ? '1' : '0';
     el.textContent = on ? '✅ 已加入路線' : '🧭 加入路線';
   }
-  renderRouteBar();
 };
 document.getElementById('routeclear').onclick = () => {
   state.route = [];
-  LS.set('route', []);
-  renderRouteBar();
+  saveRoute();
   render();
 };
-document.getElementById('routestart').onclick = () => {
-  const stops = state.route.map(id => byId[id]).filter(d => d && 'y' in d);
-  if (!stops.length) return toast('尚未加入任何機廳到路線');
+document.getElementById('routeedit').onclick = () => openRoute();
+function startRoute() {
+  const stops = routeStops();
+  if (!stops.length) return toast('路線裡沒有要去的機廳');
   const dest = stops[stops.length - 1],
     mids = stops.slice(0, -1);
   let url = `https://www.google.com/maps/dir/?api=1`;
@@ -470,7 +484,8 @@ document.getElementById('routestart').onclick = () => {
   if (mids.length)
     url += `&waypoints=${encodeURIComponent(mids.map(d => `${d.y},${d.x}`).join('|'))}`;
   window.open(url, '_blank');
-};
+}
+document.getElementById('routestart').onclick = startRoute;
 
 window.shareView = async () => {
   writeHash();
