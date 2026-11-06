@@ -148,6 +148,25 @@ with sync_playwright() as p:
     check("路線：開始導覽開 Google Maps 多點路線", "google.com/maps/dir" in url and "waypoints" in url, url[:90])
     page.click("#routeclear")
     check("路線：清空後底部列消失", not page.locator("#routebar").is_visible())
+    for i in range(3):
+        rbtns.nth(i).click()
+    ids = page.evaluate("()=>state.route.slice()")
+    page.click("#routeedit")
+    rd = page.locator("#route[open]")
+    check("路線：✏️ 順序列出已選的站", rd.locator(".rt-item").count() == 3)
+    rd.locator(".rt-item").nth(2).locator("[data-mv='-1']").click()
+    rd.locator(".rt-item").nth(0).locator("input").uncheck()
+    check("路線：可以調整順序、關掉某一站", page.evaluate("()=>state.route") == [ids[0], ids[2], ids[1]]
+          and page.evaluate("()=>[...state.routeOff]") == [ids[0]]
+          and "1 站先不去" in page.inner_text("#routebar .rcount"))
+    page.evaluate("()=>{window._wo=window.open;window._open=null;window.open=u=>{window._open=u}}")
+    rd.locator("#rt-go").click()
+    url = unquote(page.evaluate("()=>window._open") or "")
+    page.evaluate("()=>{window.open=window._wo}")
+    pos = page.evaluate("ids=>ids.map(i=>byId[i].y+','+byId[i].x)", ids)
+    check("路線：開始導覽照順序、跳過關掉的站", f"destination={pos[1]}" in url
+          and f"waypoints={pos[2]}" in url and pos[0] not in url, url[-80:])
+    page.click("#routeclear")
 
     # 地圖
     page.locator(".viewtoggle button", has_text="地圖").click()
@@ -1103,6 +1122,9 @@ export const getDocs = async q => {
     check("行程：末班車過半夜也算得對", r["s"] == [["e", 1380, 1440]], str(r))
     r = trip([sa], start="21:40")
     check("行程：快打烊、待不到 30 分的店不排", r["s"] == [], str(r))
+    r = page.evaluate("""([pool])=>{const p=planFixed(pool,{date:'2026-11-02',start:'11:00',end:'23:30',stay:60,
+      move:'train',origin:null});return {s:p.stops.map(x=>x.d.i),k:p.skipped.map(d=>d.i)}}""", [[sb, sa, sc, sd]])
+    check("行程：照我的順序排（公休的跳過、沒營業時間的當作有開）", r == {"s": ["b", "a", "d"], "k": ["c"]}, str(r))
     page.evaluate("()=>{window._open=null;window.open=u=>{window._open=u}}")
     page.locator(".chip", has_text="排行程").click()
     check("行程：沒選縣市／地點時請使用者先縮小範圍", "先在上面選縣市" in page.locator("#pl-res").inner_text())
@@ -1124,6 +1146,14 @@ export const getDocs = async q => {
     check("行程：已選路線時可以只排路線裡的店",
           page.locator("#plan [data-k='src'][data-v='route'][data-on='1']").count() == 1
           and page.locator("#pl-res .pl-no").count() == 4)
+    second = page.locator("#plan .rt-item .b50-title").nth(1).inner_text()
+    page.locator("#plan .rt-item").nth(1).locator("[data-mv='-1']").click()
+    check("行程：在排行程裡調順序，行程照著變",
+          page.locator("#plan [data-k='order'][data-v='mine'][data-on='1']").count() == 1
+          and page.locator("#pl-res .pl-step .b50-title").first.inner_text() == second, second)
+    page.locator("#plan .rt-item").nth(0).locator("input").uncheck()
+    check("行程：關掉的站不排進去", page.locator("#pl-res .pl-no").count() == 3
+          and second not in page.locator("#pl-res").inner_text())
     ctx.close()
 
     # ---------- 手機 ----------

@@ -10,6 +10,7 @@ const PLAN_DEFAULT = {
   stay: 60,
   stops: 5,
   move: 'train',
+  order: 'mine',
 };
 const PLAN_STAY = [30, 45, 60, 90, 120];
 const PLAN_STOPS = [2, 3, 4, 5, 6, 9];
@@ -91,9 +92,111 @@ function planTrip(pool, o) {
 }
 const nearCount = (d, pool) => pool.filter(x => x !== d && kmBetween(d, x) < 2).length;
 
+/* 照使用者排的順序一站站算時間；那天排不進去的（公休、到了已經打烊）跳過，沒有營業時間的當作有開 */
+function planFixed(pool, o) {
+  const wd = new Date(o.date + 'T12:00').getDay(),
+    start = hm(o.start),
+    end = hm(o.end) <= start ? hm(o.end) + 1440 : hm(o.end),
+    minStay = Math.min(30, o.stay),
+    stops = [],
+    skipped = [];
+  let t = start,
+    pos = o.origin ? { y: o.origin.lat, x: o.origin.lng } : null;
+  for (const d of pool) {
+    const km = pos ? kmBetween(pos, d) : 0,
+      mv = pos ? moveOf(km, o.move) : { m: 0, how: 'walk' },
+      arrive = t + mv.m,
+      known = hasHours(d);
+    let got = null;
+    for (const [s, e] of known ? openWindows(d, wd) : [[-1440, 2880]]) {
+      const play = Math.max(arrive, s),
+        leave = Math.min(play + o.stay, e, end);
+      if (leave - play >= minStay) {
+        got = { d, km, mv, arrive, play, leave, close: e, unknown: !known };
+        break;
+      }
+    }
+    if (!got) {
+      skipped.push(d);
+      continue;
+    }
+    stops.push(got);
+    t = got.leave;
+    pos = d;
+  }
+  return { wd, start, end, stops, unknown: 0, skipped };
+}
+
+/* 已選路線：▲▼ 調順序、開關決定要不要去、✕ 移除（底部列「✏️ 順序」和排行程共用） */
+function routeListHTML() {
+  let n = 0;
+  return state.route
+    .map((id, i) => {
+      const d = byId[id],
+        on = !state.routeOff.has(id);
+      return `<div class="pl-step rt-item${on ? '' : ' off'}" data-i="${i}">
+        <span class="pl-no">${on ? ++n : '–'}</span>
+        <div class="b50-info"><div class="b50-title">${esc(d.z || d.zg || d.n)}</div><div class="b50-meta">${esc(d.p || '')}</div></div>
+        <button class="iconbtn" data-mv="-1" aria-label="往前"${i ? '' : ' disabled'}>▲</button>
+        <button class="iconbtn" data-mv="1" aria-label="往後"${i < state.route.length - 1 ? '' : ' disabled'}>▼</button>
+        <label class="rt-sw" title="要不要去這站"><input type="checkbox" aria-label="要去這站"${on ? ' checked' : ''}><span></span></label>
+        <button class="iconbtn" data-rm aria-label="從路線移除">✕</button></div>`;
+    })
+    .join('');
+}
+function bindRouteList(el, redraw) {
+  el.querySelectorAll('.rt-item').forEach(row => {
+    const i = +row.dataset.i,
+      id = state.route[i];
+    row.querySelectorAll('[data-mv]').forEach(
+      b =>
+        (b.onclick = () => {
+          const j = i + +b.dataset.mv;
+          [state.route[i], state.route[j]] = [state.route[j], state.route[i]];
+          saveRoute();
+          redraw();
+        }),
+    );
+    row.querySelector('input').onchange = e => {
+      e.target.checked ? state.routeOff.delete(id) : state.routeOff.add(id);
+      saveRoute();
+      redraw();
+    };
+    row.querySelector('[data-rm]').onclick = () => {
+      state.route.splice(i, 1);
+      saveRoute();
+      render();
+      redraw();
+    };
+  });
+}
+function openRoute() {
+  const draw = () => {
+    const d = ensureDialog(
+      'route',
+      `<h2>🧭 已選路線</h2>
+      <p class="dlg-hint">用 ▲▼ 調整順序；關掉開關的站會留在清單裡，但導覽和排行程會跳過。「開始導覽」照這個順序交給 Google 地圖。</p>
+      <div class="rt-list">${routeListHTML() || '<div class="empty">路線是空的</div>'}</div>
+      <div class="cq-actions"><button class="btn ghost small" id="rt-plan"${routeStops().length ? '' : ' disabled'}>🗓️ 排行程</button>
+        <button class="btn small" id="rt-go"${routeStops().length ? '' : ' disabled'}>開始導覽</button></div>`,
+    );
+    bindRouteList(d, draw);
+    d.querySelector('#rt-go').onclick = () => {
+      d.close();
+      startRoute();
+    };
+    d.querySelector('#rt-plan').onclick = () => {
+      d.close();
+      openPlan();
+    };
+    if (!d.open) d.showModal();
+  };
+  draw();
+}
+
 /* 候選店：已選路線（2 間以上）或目前篩選結果；「只看營業中」是看現在，排別天的行程時不套用 */
 function planPool(src) {
-  if (src === 'route') return state.route.map(id => byId[id]).filter(d => d && 'y' in d);
+  if (src === 'route') return routeStops();
   const keep = state.openOnly;
   state.openOnly = false;
   const rs = filtered().filter(d => 'y' in d);
@@ -108,7 +211,8 @@ function planResultHTML(o, pool) {
   if (!pool.length) return '<div class="empty">沒有可以排的機廳（需要有座標）</div>';
   if (o.src !== 'route' && !poolNarrow())
     return '<div class="empty">先在上面選縣市、輸入地名按「搜尋此地」或按「📍 附近」，再來排行程。</div>';
-  const p = planTrip(pool, o);
+  const fixed = o.src === 'route' && o.order === 'mine',
+    p = fixed ? planFixed(pool, o) : planTrip(pool, o);
   if (!p.stops.length)
     return `<div class="empty">${clock(p.start)}～${clock(p.end)} 之間沒有排得進去的機廳（可能都公休或還沒開門），換個時間或日期試試。</div>`;
   let html = '',
@@ -122,6 +226,7 @@ function planResultHTML(o, pool) {
     if (x.leave === x.close) notes.push(`${clock(x.close)} 打烊，待到關門`);
     else if (x.leave === p.end) notes.push('末班車時間到，要離開了');
     if (x.leave - x.play < o.stay) notes.push(`只能玩 ${x.leave - x.play} 分`);
+    if (x.unknown) notes.push('沒有營業時間資料，當作有開');
     if (i || o.origin)
       html += `<div class="pl-move">${PLAN_MOVE[x.mv.how].name} 約 ${x.mv.m} 分 · ${x.km.toFixed(1)} km</div>`;
     html += `<div class="pl-step"><span class="pl-no">${i + 1}</span>
@@ -137,8 +242,13 @@ function planResultHTML(o, pool) {
       : `，還有 ${Math.floor(spare / 60) ? Math.floor(spare / 60) + ' 小時 ' : ''}${spare % 60} 分緩衝`
   }</div>`;
   const skipped = [
-    p.stops.length < Math.min(o.stops, pool.length) ? `只排得進 ${p.stops.length} 站` : '',
+    !fixed && p.stops.length < Math.min(o.stops, pool.length)
+      ? `只排得進 ${p.stops.length} 站`
+      : '',
     p.unknown ? `${p.unknown} 間沒有營業時間，沒有排進去` : '',
+    p.skipped && p.skipped.length
+      ? `${p.skipped.map(d => esc(d.z || d.zg || d.n)).join('、')} 那天排不進去（公休或到的時候快打烊），先跳過`
+      : '',
   ].filter(Boolean);
   if (skipped.length) html += `<p class="cq-hint">${skipped.join(' · ')}</p>`;
   plan.last = p.stops.map(x => x.d.i);
@@ -152,8 +262,10 @@ function openPlan() {
   o.src = state.route.length >= 2 ? 'route' : 'filter';
   const draw = () => {
     o.origin = state.origin;
+    if (o.src === 'route' && state.route.length < 2) o.src = 'filter';
     const pool = planPool(o.src),
-      wd = new Date(o.date + 'T12:00').getDay();
+      wd = new Date(o.date + 'T12:00').getDay(),
+      fixed = o.src === 'route' && o.order === 'mine';
     const radio = (key, items) =>
       items
         .map(
@@ -170,23 +282,37 @@ function openPlan() {
         'stay',
         PLAN_STAY.map(m => [m, m + ' 分']),
       )}</div></div>
-      <div class="mai-frow"><label>最多</label><div class="chips">${radio(
-        'stops',
-        PLAN_STOPS.map(n => [n, n + ' 站']),
-      )}</div></div>
+      ${
+        fixed
+          ? ''
+          : `<div class="mai-frow"><label>最多</label><div class="chips">${radio(
+              'stops',
+              PLAN_STOPS.map(n => [n, n + ' 站']),
+            )}</div></div>`
+      }
       <div class="mai-frow"><label>移動</label><div class="chips">${radio(
         'move',
         Object.entries(PLAN_MOVE).map(([k, m]) => [k, m.name]),
       )}</div></div>
       <div class="mai-frow"><label>從哪裡挑</label><div class="chips">${radio('src', [
-        ...(state.route.length >= 2 ? [['route', `🧭 已選路線（${state.route.length} 間）`]] : []),
+        ...(state.route.length >= 2 ? [['route', `🧭 已選路線（${routeStops().length} 間）`]] : []),
         ['filter', `📋 目前篩選結果（${planPool('filter').length} 間）`],
       ])}</div></div>
+      ${
+        o.src === 'route'
+          ? `<div class="mai-frow"><label>順序</label><div class="chips">${radio('order', [
+              ['mine', '✋ 照我排的順序'],
+              ['auto', '⚡ 自動排（看營業時間）'],
+            ])}</div></div>
+            <div class="rt-list">${routeListHTML()}</div>`
+          : ''
+      }
       <p class="dlg-hint">${o.origin ? `起點：${esc(o.origin.label)}。` : '沒有設定起點（按「📍 附近」或「搜尋此地」可以設定），第一站挑最早開門的店。'}移動時間是用直線距離估的，實際以導航為準。</p>
       <div id="pl-res">${planResultHTML(o, pool)}</div>
       <div class="cq-actions"><button class="btn small" id="pl-apply"${plan.last.length ? '' : ' disabled'}>🧭 套用到路線並導航</button></div>`,
     );
     d.classList.add('dlg-wide');
+    bindRouteList(d, draw);
     const save = () => {
       // 候選來源不記：每次打開時有選路線就用路線
       const { origin, src, ...keep } = o;
@@ -214,12 +340,14 @@ function openPlan() {
       save();
     };
     d.querySelector('#pl-apply').onclick = () => {
-      state.route = plan.last.slice(0, MAX_ROUTE);
-      LS.set('route', state.route);
+      // 從路線排的：沒排進去的站留在路線後面、先關掉；從篩選結果排的直接換掉整條路線
+      const rest = o.src === 'route' ? state.route.filter(id => !plan.last.includes(id)) : [];
+      state.route = [...plan.last, ...rest].slice(0, MAX_ROUTE);
+      state.routeOff = new Set(rest);
+      saveRoute();
       d.close();
-      renderRouteBar();
       render();
-      document.getElementById('routestart').click();
+      startRoute();
     };
     if (!d.open) d.showModal();
   };
