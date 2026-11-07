@@ -628,6 +628,20 @@ body.has-route #toast {
   font-size: 0.95rem;
   margin-bottom: 3px;
 }
+.pop .ppref {
+  display: inline-block;
+  margin: 0 2px 0 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  /* 反白配色：淺色模式深底白字、深色模式淺底深字，不跟營業狀態的綠/橘/青撞色 */
+  background: var(--text);
+  color: var(--surface);
+  vertical-align: 1px;
+  white-space: nowrap;
+}
 .pop .ph {
   font-size: 0.78rem;
   color: var(--muted);
