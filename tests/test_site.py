@@ -204,6 +204,12 @@ with sync_playwright() as p:
     if page.locator(".leaflet-popup .pop").count():
         color = page.locator(".leaflet-popup a.btn").first.evaluate("e=>getComputedStyle(e).color")
         check("地圖：彈窗『導航前往』文字是白色", color == "rgb(255, 255, 255)", color)
+        btns = page.locator(".leaflet-popup .cfoot a.btn")
+        check("地圖：彈窗有『導航前往』與『店家資訊』",
+              btns.count() == 2 and "/maps/dir" in (btns.nth(0).get_attribute("href") or "")
+              and "/maps/dir" not in (btns.nth(1).get_attribute("href") or "")
+              and btns.nth(1).inner_text().strip() == "店家資訊",
+              " / ".join(btns.all_inner_texts()))
         page.locator(".leaflet-popup .rtbtn").click()
         check("地圖：彈窗內加入路線", "1/9" in page.inner_text("#routebar .rcount"))
         page.click("#routeclear")

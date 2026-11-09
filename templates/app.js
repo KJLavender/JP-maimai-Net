@@ -631,18 +631,16 @@ function card(d) {
   <div class="cacts">${routeBtnHTML(d)}${visitedBtnHTML(d)}</div>
   <div class="cfoot">${navBtns(d)}${detail}</div></div>`;
 }
+// 「大分県」→「大分」、「東京都」→「東京」；北海道保留原名
+const shortPref = p => (p === '北海道' ? p : p.replace(/[都府県縣]$/, ''));
 function popupHTML(d) {
   const b = status(d).b;
   const star = state.favs.has(d.i) ? '★' : '☆';
-  const nav =
-    'y' in d
-      ? `https://www.google.com/maps/dir/?api=1&destination=${d.y},${d.x}${d.gp ? '&destination_place_id=' + d.gp : ''}`
-      : d.u;
-  return `<div class="pop"><div class="pn"><button class="star" onclick="toggleFav(${d._idx},this)">${star}</button> ${esc(d.z || d.zg || d.n)}</div>
+  return `<div class="pop"><div class="pn"><button class="star" onclick="toggleFav(${d._idx},this)">${star}</button>${d.p ? `<span class="ppref">${esc(shortPref(d.p))}</span>` : ''} ${esc(d.z || d.zg || d.n)}</div>
   ${b ? `<span class="badge ${b.c}">${b.t}</span>` : ''} <span class="ph">${esc(dayHours(d, localNow(tzOff(d)).wd) || (d.w ? '今日公休' : '官方未登記營業時間'))}</span>
   <div class="gtags">${gtagsHTML(d.g)}</div>
   <div class="cacts">${routeBtnHTML(d)}${visitedBtnHTML(d)}</div>
-  <div class="cfoot"><a class="btn" href="${esc(nav)}" target="_blank" rel="noopener">導航前往</a></div></div>`;
+  <div class="cfoot">${navBtns(d)}</div></div>`;
 }
 
 let map, cluster, meMarker;

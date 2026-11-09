@@ -31,6 +31,7 @@ HEAD = ["名稱", "地址", "都道府縣", "營業時間", "遊戲", "郵遞區
 CARRY = ["中文名", "google_place_id", "營業時間來源", "週營業時間", "機台", "mgm_id"]
 SID = re.compile(r"sid=(\d+)")
 log = lambda *a: print(*a, flush=True)
+SOURCE_DOWN = 3   # 結束代碼：官網連不上，每週排程會當成「跳過」而不是失敗
 
 
 def sid_of(row):
@@ -161,7 +162,12 @@ def main():
 
     old = load_old()
     s = requests.Session()
-    jp.get(s, params={"gm": jp.GM})
+    # 先連一次官網：整個連不上（例如 ALL.Net 維護中）就不用一縣一縣重試快一小時，直接跳過
+    if not jp.get(s, params={"gm": jp.GM}):
+        msg = "ALL.Net 設置店舖檢索連不上（可能在維護），這次跳過機廳資料、沿用舊的"
+        log(msg)
+        open(paths.SUMMARY, "w", encoding="utf-8").write(f"## 資料更新\n\n⚠️ {msg}。\n")
+        sys.exit(SOURCE_DOWN)
     new_jp = scrape_jp(s, args.limit)
     new_tw = scrape_tw(s, args.limit)
     if not args.limit and len(new_jp) < 0.8 * sum(1 for r in old.values() if r["都道府縣"] != "台灣"):
