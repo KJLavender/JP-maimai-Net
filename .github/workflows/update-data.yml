@@ -32,7 +32,17 @@ jobs:
           PYTHONIOENCODING: utf-8
         # 不加 --mgm：Music Game Map 擋 GitHub Actions 的 IP，台灣中文名／機台資訊沿用 data/mgm_cache.csv，
         # 要更新請在本機跑 python scripts/update_data.py --mgm
-        run: python scripts/update_data.py
+        # 官網連不上時 update_data.py 回傳 3：只跳過機廳資料，歌曲資料照常更新
+        run: |
+          set +e
+          python scripts/update_data.py
+          code=$?
+          set -e
+          if [ "$code" -eq 3 ]; then
+            echo "::warning::ALL.Net 設置店舖檢索連不上，這週沿用舊的機廳資料"
+          elif [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi
 
       - name: Song constants (arcade-songs)
         env:
